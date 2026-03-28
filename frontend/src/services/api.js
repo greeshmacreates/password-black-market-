@@ -11,6 +11,20 @@ API.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  const teamRaw = localStorage.getItem("team");
+  if (teamRaw) {
+    try {
+      const team = JSON.parse(teamRaw);
+      const devUid = team.firebaseUID || team.teamId;
+      if (devUid) {
+        config.headers["x-dev-uid"] = devUid;
+      }
+    } catch (error) {
+      // Ignore malformed team payloads.
+    }
+  }
+
   return config;
 });
 
@@ -21,6 +35,7 @@ const mockTeams = {
     teamId: "ALPHA01",
     teamName: "Alpha Team",
     password: "alpha123",
+    firebaseUID: "ALPHA01",
     isAdmin: false,
     priority: 1,
     coins: 120,
@@ -31,6 +46,7 @@ const mockTeams = {
     teamId: "BETA02",
     teamName: "Beta Team",
     password: "beta123",
+    firebaseUID: "BETA02",
     isAdmin: false,
     priority: 2,
     coins: 120,
@@ -41,6 +57,7 @@ const mockTeams = {
     teamId: "ADMIN",
     teamName: "Game Admin",
     password: "admin123",
+    firebaseUID: "ADMIN",
     isAdmin: true,
     priority: 0,
     coins: 0,
@@ -149,45 +166,28 @@ const clampCoins = (value) => Math.max(0, Number(value || 0));
 // ===== MOCK API ENDPOINTS =====
 
 export const authLogin = async (data) => {
-  // Accept any login - no backend validation needed
-  const teamId = data.teamId.toUpperCase();
-  const team = mockTeams[teamId] || {
-    teamId: teamId,
-    teamName: teamId + " Team",
-    password: data.password,
-    isAdmin: teamId === "ADMIN",
-    priority: 1,
-    coins: 120,
-    score: 0,
-    cracked: { easy: 0, medium: 0, hard: 0 }
-  };
-  
-  // Reset starting coins on each login for frontend demo mode
-  team.coins = 120;
-  
-  return Promise.resolve({
-    data: {
-      token: "mock-token-" + Math.random().toString(36).slice(2),
-      team
-    }
+  const res = await API.post("/api/login", {
+    teamId: data.teamId,
+    password: data.password
   });
+  return { data: res.data };
 };
 
 export const getDashboard = async () => {
-  const sessionTeam = JSON.parse(localStorage.getItem("SESSION_KEYS.team") || "{}");
-  const team = mockTeams[sessionTeam.teamId] || mockTeams.ALPHA01;
-  team.coins = clampCoins(team.coins);
+  const res = await API.get("/api/me");
+  const team = res.data.team;
   const phaseInfo = getPhaseInfo();
-  return Promise.resolve({
+
+  return {
     data: {
       team,
       phase: phaseInfo,
       actions: {
         canSeeChaosPanel: phaseInfo.phase === "chaos",
-        canInjectMisinformation: team.priority === 1
+        canInjectMisinformation: (team.priority || 0) === 1
       }
     }
-  });
+  };
 };
 
 export const getGameState = async () => {
@@ -195,9 +195,8 @@ export const getGameState = async () => {
 };
 
 export const getAccounts = async () => {
-  return Promise.resolve({
-    data: mockAccounts.map(({ password, ...account }) => account)
-  });
+  const res = await API.get("/api/accounts");
+  return { data: res.data.accounts };
 };
 
 export const verifyAccountPassword = async ({ accountId, password }) => {
@@ -214,24 +213,11 @@ export const verifyAccountPassword = async ({ accountId, password }) => {
 };
 
 export const buyClue = async (data) => {
-  const sessionTeam = JSON.parse(localStorage.getItem("SESSION_KEYS.team") || "{}");
-  const team = mockTeams[sessionTeam.teamId] || mockTeams.ALPHA01;
-
-  const clueCost = 10;
-  if (clampCoins(team.coins) < clueCost) {
-    return Promise.reject({
-      response: { data: { message: "Insufficient funds" } }
-    });
-  }
-
-  team.coins = clampCoins(team.coins - 10);
-  localStorage.setItem("SESSION_KEYS.team", JSON.stringify(team));
-  return Promise.resolve({
-    data: {
-      message: "Clue purchased",
-      coins: team.coins
-    }
+  const res = await API.post("/api/buy-clue", {
+    username: data.username,
+    clueId: data.clueId
   });
+  return { data: res.data };
 };
 
 export const submitPassword = async (data) => {

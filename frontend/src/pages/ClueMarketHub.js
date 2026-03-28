@@ -8,6 +8,7 @@ export default function ClueMarketHub() {
   const [team, setTeam] = useState(null);
   const [targetTeams, setTargetTeams] = useState([]);
   const [misinfoPayload, setMisinfoPayload] = useState({ targetTeamId: "", fakeCategory: "Pattern Hint", fakeText: "" });
+  const [buyingClues, setBuyingClues] = useState({});
 
   const refresh = async () => {
     const [accountsRes, dashboardRes, teamsRes] = await Promise.all([getAccounts(), getDashboard(), getTeams()]);
@@ -24,15 +25,23 @@ export default function ClueMarketHub() {
     return accounts.reduce((sum, account) => sum + account.clues.filter((c) => c.unlocked).length, 0);
   }, [accounts]);
 
-  const handleBuy = async (accountId, clueId) => {
+  const handleBuy = async (account, clueId) => {
+    const key = `${account.accountId}:${clueId}`;
+    if (buyingClues[key]) return;
+
     try {
-      await buyClue({ accountId, clueId });
+      setBuyingClues((prev) => ({ ...prev, [key]: true }));
+      await buyClue({ username: account.username, clueId });
       await refresh();
     } catch (error) {
       const message = error?.response?.data?.message || "Unable to buy clue";
-      if (!/insufficient funds/i.test(message)) {
-        alert(message);
-      }
+      alert(message);
+    } finally {
+      setBuyingClues((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     }
   };
 
@@ -105,14 +114,20 @@ export default function ClueMarketHub() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                       <span className="badge easy" style={{ whiteSpace: "nowrap" }}>{clue.category}</span>
                       {!clue.unlocked ? (
-                        <button className="btn btn-primary" onClick={() => handleBuy(account.accountId, clue.clueId)}>
-                          Buy ({clue.cost})
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => handleBuy(account, clue.clueId)}
+                          disabled={buyingClues[`${account.accountId}:${clue.clueId}`]}
+                        >
+                          {buyingClues[`${account.accountId}:${clue.clueId}`] ? "Processing..." : `Buy (${clue.cost})`}
                         </button>
                       ) : (
                         <span className="auth-sub" style={{ margin: 0 }}>{clue.fake ? "Injected" : "Unlocked"}</span>
                       )}
                     </div>
-                    <p className="page-subtitle" style={{ margin: "8px 0 0" }}>{clue.text}</p>
+                    <p className="page-subtitle" style={{ margin: "8px 0 0" }}>
+                      {clue.unlocked ? clue.text : "Hidden until purchased"}
+                    </p>
                   </div>
                 ))}
               </div>
