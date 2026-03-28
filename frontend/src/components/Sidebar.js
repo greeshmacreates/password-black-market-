@@ -1,0 +1,69 @@
+import { useEffect, useMemo, useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { clearSession, getSession } from "../services/session";
+
+export default function Sidebar() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth > 760 : true));
+  const { team } = getSession();
+
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth <= 760) {
+        setOpen(false);
+      }
+    };
+
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const handleLogout = () => {
+    clearSession();
+    navigate("/");
+  };
+
+  const navItems = useMemo(() => {
+    const base = [
+      { to: "/dashboard", label: "Dashboard", short: "DB" },
+      { to: "/accounts", label: "Accounts", short: "AC" },
+      { to: "/clues", label: "Clue Market", short: "CM" },
+      { to: "/leaderboard", label: "Leaderboard", short: "LB" }
+    ];
+
+    if (team?.isAdmin) {
+      base.push({ to: "/admin", label: "Admin Panel", short: "AD" });
+    }
+
+    return base;
+  }, [team]);
+
+  return (
+    <aside className={`sidebar ${open ? "" : "collapsed"}`}>
+      <button className="btn btn-primary sidebar-toggle" onClick={() => setOpen(!open)}>
+        {open ? "Collapse" : "Expand"}
+      </button>
+
+      <h3 className="brand">{open ? "ISFCR Cipher Arena" : "ICA"}</h3>
+
+      <nav className="nav-list">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
+          >
+            {open ? item.label : item.short}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="sidebar-bottom">
+        <button className="btn btn-ghost" style={{ width: "100%" }} onClick={handleLogout}>
+          Logout
+        </button>
+      </div>
+    </aside>
+  );
+}
