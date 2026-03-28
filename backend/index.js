@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 
 const cluesRoutes = require("./routes/clues");
@@ -17,6 +18,11 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api", cluesRoutes);
+
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB Connected"))
+  .catch(err => console.log(err));
+
 
 app.use((err, req, res, next) => {
   const status = err.status || 500;

@@ -4,10 +4,14 @@ const AccountSchema = new mongoose.Schema(
   {
     username: { type: String, required: true, unique: true, trim: true },
     password: { type: String, required: true },
-    difficulty: { type: String, required: true },
-    points: { type: Number, default: 0 }
+    points: { type: Number, default: 0 },
+    difficulty: {
+      type: String,
+      enum: ["easy", "medium", "hard"],
+      required: true,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Account", AccountSchema);

@@ -7,6 +7,7 @@ const ClueSchema = new mongoose.Schema(
     isFake: { type: Boolean, default: false },
     category: { type: String, required: true },
     accountUsername: { type: String, required: true, index: true }
+    
   },
   { timestamps: true }
 );
