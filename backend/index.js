@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 
 const cluesRoutes = require("./routes/clues");
-
+const adminRoutes = require("./routes/admin");
 dotenv.config();
 
 const app = express();
@@ -18,7 +18,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api", cluesRoutes);
-
+app.use("/api/admin", adminRoutes);
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log(err));
