@@ -1,4 +1,5 @@
 import axios from "axios";
+import { firebaseTeamLogin, isFirebaseEnabled } from "./firebaseAuth";
 
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:3001";
 
@@ -75,6 +76,15 @@ const getPhaseInfo = () => {
 // ===== TEAM ENDPOINTS =====
 
 export const authLogin = async (data) => {
+  if (isFirebaseEnabled()) {
+    const fbRes = await firebaseTeamLogin(data.teamId, data.password);
+    if (!fbRes.success) {
+      throw new Error(`Authentication Failed: ${fbRes.reason}`);
+    }
+    // Set token immediately so the API POST below attaches it automatically in the interceptor
+    localStorage.setItem("token", fbRes.token);
+  }
+
   const res = await API.post("/api/login", {
     teamId: data.teamId,
     password: data.password

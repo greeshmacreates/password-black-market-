@@ -8,6 +8,9 @@ const initializeFirebase = () => {
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (serviceAccountJson) {
     const credentials = JSON.parse(serviceAccountJson);
+    if (credentials.private_key) {
+      credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+    }
     admin.initializeApp({ credential: admin.credential.cert(credentials) });
     firebaseReady = true;
     return;

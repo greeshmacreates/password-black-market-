@@ -1,4 +1,5 @@
 const express = require("express");
+const admin = require("firebase-admin");
 const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
 const Team = require("../models/Team");
 const Account = require("../models/Account");
@@ -24,7 +25,7 @@ router.use(verifyAdmin);
 
 router.get("/overview", async (req, res, next) => {
   try {
-    const teams = await Team.find();
+    const teams = await Team.find({ isAdmin: { $ne: true } });
     const accounts = await Account.find();
     const clues = await Clue.find();
 
@@ -57,11 +58,25 @@ router.get("/overview", async (req, res, next) => {
 
 router.post("/teams", async (req, res, next) => {
   try {
+    const teamId = req.body.teamId.toUpperCase();
+    const isAuthDisabled = String(process.env.FIREBASE_AUTH_DISABLED || "").toLowerCase() === "true";
+    let firebaseUID = `dev-uid-${teamId.toLowerCase()}`;
+    
+    if (!isAuthDisabled) {
+      const email = `${teamId.toLowerCase()}@blackmarket.local`;
+      const fbUser = await admin.auth().createUser({
+        email: email,
+        password: req.body.password,
+        displayName: req.body.teamName
+      });
+      firebaseUID = fbUser.uid;
+    }
+
     const newTeam = await Team.create({
-      teamId: req.body.teamId.toUpperCase(),
+      teamId: teamId,
       teamName: req.body.teamName,
       password: req.body.password,
-      firebaseUID: `dev-uid-${req.body.teamId.toLowerCase()}`, // MVP simplified UID
+      firebaseUID: firebaseUID,
       isAdmin: false,
       priority: req.body.priority || 3,
       coins: 120,
@@ -70,6 +85,9 @@ router.post("/teams", async (req, res, next) => {
     });
     return res.json({ message: "Team created", team: newTeam });
   } catch (err) {
+    if (err.code === "auth/email-already-exists") {
+      return res.status(400).json({ message: "Team already exists. Try a different ID." });
+    }
     next(err);
   }
 });

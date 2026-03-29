@@ -41,20 +41,33 @@ router.get("/me", verifyFirebaseToken, async (req, res, next) => {
   }
 });
 
-router.post("/login", async (req, res, next) => {
+router.post("/login", verifyFirebaseToken, async (req, res, next) => {
   const { teamId, password } = req.body || {};
-  if (!teamId || !password) return res.status(400).json({ message: "teamId and password are required" });
+  if (!teamId) return res.status(400).json({ message: "teamId is required" });
 
   try {
+    const isFirebaseDisabled = String(process.env.FIREBASE_AUTH_DISABLED || "").toLowerCase() === "true";
     const normalized = String(teamId).trim().toUpperCase();
     const team = await Team.findOne({ teamId: normalized });
 
-    if (!team || team.password !== password) {
+    if (!team) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    if (!isFirebaseDisabled) {
+      // If Firebase verified the user, ensure the requested teamId actually belongs to that Firebase account
+      if (team.firebaseUID !== req.firebaseUID) {
+        return res.status(401).json({ message: "Authentication mismatch. Token does not match team." });
+      }
+    } else {
+      // Only strictly verify plaintext password if Firebase is disabled.
+      if (team.password !== password) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+    }
+
     return res.json({
-      token: `dev-token-${team.firebaseUID}`,
+      token: isFirebaseDisabled ? `dev-token-${team.firebaseUID}` : req.header("authorization")?.slice(7),
       team: {
         teamId: team.teamId,
         teamName: team.teamName,
