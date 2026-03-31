@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authLogin } from "../services/api";
 import { setSession } from "../services/session";
+import { toast } from "react-hot-toast";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -16,14 +17,14 @@ export default function AdminLogin() {
       const res = await authLogin({ teamId: teamId.toUpperCase(), password });
 
       if (!res.data.team.isAdmin) {
-        alert("This login is only for admin account");
+        toast.error("This login is only for admin account");
         return;
       }
 
       setSession({ token: res.data.token, team: res.data.team });
       navigate("/admin");
     } catch (error) {
-      alert(error?.response?.data?.message || "Admin login failed");
+      toast.error(error?.response?.data?.message || error.message || "Admin login failed");
     } finally {
       setLoading(false);
     }

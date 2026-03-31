@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 import Sidebar from "../components/Sidebar";
 import { buyClue as buyClueRequest, getClues } from "../services/api";
 
@@ -48,7 +49,7 @@ export default function ClueMarket() {
     const price = Number(clue?.price ?? 20);
 
     if (team.coins < price) {
-      alert("Insufficient funds");
+      toast.error("Insufficient funds");
       return;
     }
 
@@ -71,7 +72,7 @@ export default function ClueMarket() {
 
     setTeam(updatedTeam);
     localStorage.setItem("team", JSON.stringify(updatedTeam));
-    alert("Clue purchased!");
+    toast.success("Clue purchased!");
   };
 
   return (

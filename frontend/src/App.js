@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import "./App.css";
 
 import Login from "./pages/Login";
@@ -72,6 +73,30 @@ function AnimatedRoutes() {
 function App() {
   return (
     <BrowserRouter>
+      <Toaster 
+        position="top-center" 
+        toastOptions={{
+          style: {
+            background: 'rgba(15, 23, 42, 0.9)',
+            color: '#e6eefc',
+            border: '1px solid rgba(148, 163, 184, 0.26)',
+            backdropFilter: 'blur(16px)',
+            boxShadow: '0 18px 55px rgba(2, 8, 20, 0.35)'
+          },
+          success: {
+            iconTheme: {
+              primary: '#4ade80',
+              secondary: '#05221a',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#05221a',
+            },
+          },
+        }}
+      />
       <AnimatedRoutes />
     </BrowserRouter>
   );

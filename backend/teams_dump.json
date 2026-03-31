@@ -1,0 +1,50 @@
+[
+  {
+    "_id": "69caa0414d20fe931eb0a9c7",
+    "teamId": "TEAM01",
+    "teamName": "Alpha Squad",
+    "password": "pass123",
+    "firebaseUID": "dummyUID123",
+    "coins": 120,
+    "priority": 3,
+    "score": 0,
+    "purchasedClues": [],
+    "isAdmin": false,
+    "crackedAccounts": [],
+    "createdAt": "2026-03-30T16:09:37.630Z",
+    "updatedAt": "2026-03-30T16:09:37.630Z",
+    "__v": 0
+  },
+  {
+    "_id": "69caa042e8aa42758224413f",
+    "teamId": "ADMIN",
+    "teamName": "Game Admin",
+    "password": "admin123",
+    "firebaseUID": "dev-uid-admin",
+    "coins": 0,
+    "priority": 1,
+    "score": 0,
+    "purchasedClues": [],
+    "isAdmin": true,
+    "crackedAccounts": [],
+    "createdAt": "2026-03-30T16:09:38.852Z",
+    "updatedAt": "2026-03-30T16:09:38.852Z",
+    "__v": 0
+  },
+  {
+    "_id": "69cb7f1b048e5b16d08035f6",
+    "teamId": "TEAM100",
+    "teamName": "ajjaiah2006",
+    "password": "ajjaiah006",
+    "firebaseUID": "MhnQU1nTJ1brHUGGKUSkOoNCacF2",
+    "coins": 120,
+    "priority": 3,
+    "score": 0,
+    "crackedAccounts": [],
+    "purchasedClues": [],
+    "isAdmin": false,
+    "createdAt": "2026-03-31T08:00:27.692Z",
+    "updatedAt": "2026-03-31T08:00:27.692Z",
+    "__v": 0
+  }
+]

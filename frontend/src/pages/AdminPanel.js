@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import Sidebar from "../components/Sidebar";
+import { toast } from "react-hot-toast";
 import {
   adminAddClue,
   adminCreateAccount,
@@ -8,8 +9,17 @@ import {
   adminInjectFakeClue,
   adminSetPhase,
   adminStartGame,
-  adminStopGame
+  adminStopGame,
+  getGameState
 } from "../services/api";
+
+const formatTimer = (seconds) => {
+  const safe = Math.max(Number(seconds || 0), 0);
+  const h = String(Math.floor(safe / 3600)).padStart(2, "0");
+  const m = String(Math.floor((safe % 3600) / 60)).padStart(2, "0");
+  const s = String(safe % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+};
 
 export default function AdminPanel() {
   const [overview, setOverview] = useState(null);
@@ -17,6 +27,8 @@ export default function AdminPanel() {
   const [accountForm, setAccountForm] = useState({ username: "", difficulty: "easy", password: "" });
   const [clueForm, setClueForm] = useState({ accountId: "", category: "Pattern Hint", text: "", cost: 10 });
   const [fakeForm, setFakeForm] = useState({ accountId: "", targetTeamId: "", category: "Pattern Hint", text: "" });
+  const [phaseInfo, setPhaseInfo] = useState({ phase: "waiting", reconLeftSec: 0, chaosLeftSec: 0 });
+  const [livePhase, setLivePhase] = useState({ phase: "waiting", reconLeftSec: 0, chaosLeftSec: 0 });
 
   const refresh = useCallback(async () => {
     const res = await adminGetOverview();
@@ -26,19 +38,62 @@ export default function AdminPanel() {
       setClueForm((prev) => ({ ...prev, accountId: res.data.accounts[0].accountId }));
       setFakeForm((prev) => ({ ...prev, accountId: res.data.accounts[0].accountId }));
     }
+
+    const phaseRes = await getGameState();
+    setPhaseInfo(phaseRes.data);
   }, [clueForm.accountId]);
 
   useEffect(() => {
     refresh().catch(() => {});
+    
+    const timer = setInterval(() => {
+      refresh().catch(() => {});
+    }, 10000);
+
+    return () => clearInterval(timer);
   }, [refresh]);
+
+  useEffect(() => {
+    setLivePhase(phaseInfo);
+  }, [phaseInfo]);
+
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setLivePhase((prev) => {
+        if (prev.phase === "recon") {
+          const reconLeft = Math.max((prev.reconLeftSec || 0) - 1, 0);
+
+          return {
+            phase: reconLeft > 0 ? "recon" : "chaos",
+            reconLeftSec: reconLeft,
+            chaosLeftSec: prev.chaosLeftSec || 0
+          };
+        }
+
+        if (prev.phase === "chaos") {
+          const chaosLeft = Math.max((prev.chaosLeftSec || 0) - 1, 0);
+
+          return {
+            phase: chaosLeft > 0 ? "chaos" : "ended",
+            reconLeftSec: 0,
+            chaosLeftSec: chaosLeft
+          };
+        }
+
+        return prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(tick);
+  }, []);
 
   const execute = async (request, successMessage) => {
     try {
       await request();
       await refresh();
-      alert(successMessage);
+      toast.success(successMessage);
     } catch (error) {
-      alert(error?.response?.data?.message || "Action failed");
+      toast.error(error?.response?.data?.message || "Action failed");
     }
   };
 
@@ -57,6 +112,11 @@ export default function AdminPanel() {
 
         <section className="panel" style={{ marginBottom: 14 }}>
           <h3 style={{ marginTop: 0 }}>Game Controls</h3>
+          <div className="stats-grid" style={{ marginBottom: 16 }}>
+            <div className="stat-card"><div className="stat-label">Phase</div><div className="stat-value" style={{ textTransform: "capitalize" }}>{livePhase.phase}</div></div>
+            <div className="stat-card"><div className="stat-label">Recon Time Left</div><div className="stat-value mono">{formatTimer(livePhase.reconLeftSec)}</div></div>
+            <div className="stat-card"><div className="stat-label">Chaos Time Left</div><div className="stat-value mono">{formatTimer(livePhase.chaosLeftSec)}</div></div>
+          </div>
           <div className="actions-row">
             <button className="btn btn-primary" onClick={() => execute(() => adminStartGame({}), "Game started")}>Start Game</button>
             <button className="btn btn-ghost" onClick={() => execute(() => adminStopGame(), "Game stopped")}>Stop Game</button>

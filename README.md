@@ -41,45 +41,50 @@ FIREBASE_SERVICE_ACCOUNT_JSON='{ "type": "service_account", "project_id": "...",
 
 ---
 
-## 🏗️ Detailed Local Setup & Installation
+## 🤝 Developer Quick Start (Clone to Run)
 
-### Step 1: Install Dependencies
-Open your terminal at the very root of the project (`password-black-market-/`) and install the root dependencies. It is recommended to also install the nested dependencies.
+If you are a new collaborator cloning the repository, follow these precise steps to get a working environment up and running in minutes.
+
+### 1. Clone the Repository
 ```bash
-# In the root directory
-npm install
-
-# In the backend
-cd backend
-npm install
-
-# In the frontend
-cd ../frontend
-npm install
+git clone https://github.com/your-org/password-black-market-.git
+cd password-black-market-
 ```
 
-### Step 2: Initialize the Database and First Admin
-Because the application is highly secure, you cannot "Sign Up" as an admin from the website. You must inject the very first admin directly into your database.
-
-1. Navigate to the `backend/` directory:
+### 2. Install All Dependencies
+Install packages for the root, frontend, and backend environments automatically using the built-in fast install script.
 ```bash
-cd backend
+# Install root, backend, and frontend dependencies in one go
+npm run install-all
 ```
 
-2. Run the seeding script to create initial game logic (optional fake clues and teams):
-```bash
-node seed.js
+### 3. Configure Environments (.env)
+You must create `.env` files in both the `backend/` and `frontend/` directories using the keys provided by your team lead.
+
+**`backend/.env`**
+```env
+FIREBASE_AUTH_DISABLED=false
+MONGO_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/?appName=ISFCR
+FIREBASE_SERVICE_ACCOUNT_JSON='{ "type": "service_account", "project_id": "...", ... }'
 ```
 
-3. **CRITICAL:** Run the following one-liner to spawn the default `ADMIN` account in your MongoDB:
-```bash
-node -e "require('dotenv').config(); const mongoose=require('mongoose'); const Team=require('./models/Team'); mongoose.connect(process.env.MONGO_URI).then(async()=>{ await Team.create({teamId:'ADMIN', teamName:'Game Admin', password:'admin123', firebaseUID:'dev-uid-admin', isAdmin:true, coins:0, priority:1}); console.log('Admin account created!'); process.exit(); }).catch(console.error);"
+**`frontend/.env`**
+```env
+REACT_APP_FIREBASE_API_KEY="..."
+REACT_APP_FIREBASE_AUTH_DOMAIN="..."
+REACT_APP_FIREBASE_PROJECT_ID="..."
+REACT_APP_FIREBASE_STORAGE_BUCKET="..."
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID="..."
+REACT_APP_FIREBASE_APP_ID="..."
 ```
 
-4. **Sync Admin to Firebase Auth:**
-Run the Firebase synchronization script. This takes the `ADMIN` account you just created in MongoDB and officially registers it as `admin@blackmarket.local` in your Firebase Authentication project:
+### 4. Seed the Database & Sync Firebase
+You need to inject the initial database structure, default clues, the `ADMIN` login profile, and sync Firebase.
+We've bundled all of this into a single concurrent automation script!
+
 ```bash
-node setupFirebase.js
+# Run the automated backend seeding, admin injection, and Firebase sync natively
+npm run setup
 ```
 
 ---

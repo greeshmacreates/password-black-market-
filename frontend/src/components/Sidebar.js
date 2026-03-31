@@ -25,18 +25,19 @@ export default function Sidebar() {
   };
 
   const navItems = useMemo(() => {
-    const base = [
+    if (team?.isAdmin) {
+      return [
+        { to: "/admin", label: "Admin Panel", short: "AD" },
+        { to: "/leaderboard", label: "Leaderboard", short: "LB" }
+      ];
+    }
+
+    return [
       { to: "/dashboard", label: "Dashboard", short: "DB" },
       { to: "/accounts", label: "Accounts", short: "AC" },
       { to: "/clues", label: "Clue Market", short: "CM" },
       { to: "/leaderboard", label: "Leaderboard", short: "LB" }
     ];
-
-    if (team?.isAdmin) {
-      base.push({ to: "/admin", label: "Admin Panel", short: "AD" });
-    }
-
-    return base;
   }, [team]);
 
   return (

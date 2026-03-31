@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 import Sidebar from "../components/Sidebar";
 import { getDashboard, runChaosAction } from "../services/api";
 
@@ -78,12 +79,12 @@ export default function TeamDashboard() {
   const onChaosAction = async (action) => {
     try {
       const res = await runChaosAction({ action });
-      alert(res.data.message);
+      toast.success(res.data.message);
       await refresh();
     } catch (error) {
       const message = error?.response?.data?.message || "Action failed";
       if (!/insufficient funds/i.test(message)) {
-        alert(message);
+        toast.error(message);
       }
     }
   };

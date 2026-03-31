@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import { buyClue, getAccounts, getDashboard, getLeaderboard, submitPassword } from "../services/api";
 import { updateTeamSession } from "../services/session";
+import { toast } from "react-hot-toast";
 
 export default function ClueMarketHub() {
   const [accounts, setAccounts] = useState([]);
@@ -39,7 +40,7 @@ export default function ClueMarketHub() {
       await refresh();
     } catch (error) {
       const message = error?.response?.data?.message || "Unable to buy clue";
-      alert(message);
+      toast.error(message);
     } finally {
       setBuyingClues((prev) => {
         const next = { ...prev };
@@ -64,10 +65,10 @@ export default function ClueMarketHub() {
           fakeText: misinfoPayload.fakeText || "Possible pattern contains mirrored symbols."
         });
         updateTeamSession(res.data.team);
-        alert("ACCESS GRANTED + fake clue injected");
+        toast.success("ACCESS GRANTED + fake clue injected");
         await refresh();
       } catch (error) {
-        alert(error?.response?.data?.message || "Submission failed");
+        toast.error(error?.response?.data?.message || "Submission failed");
       }
       return;
     }
@@ -75,10 +76,10 @@ export default function ClueMarketHub() {
     try {
       const res = await submitPassword({ accountId, password, chooseReward: "coins" });
       updateTeamSession(res.data.team);
-      alert(res.data.message);
+      toast.success(res.data.message);
       await refresh();
     } catch (error) {
-      alert(error?.response?.data?.message || "Submission failed");
+      toast.error(error?.response?.data?.message || "Submission failed");
     }
   };
 
