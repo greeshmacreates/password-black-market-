@@ -10,9 +10,8 @@ const AccountSchema = new mongoose.Schema(
       enum: ["easy", "medium", "hard"],
       required: true,
     },
-    crackedBy: { type: [String], default: [] }
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Account", AccountSchema);

@@ -68,10 +68,10 @@ export default function AdminPanel() {
         <section className="panel" style={{ marginBottom: 14 }}>
           <h3 style={{ marginTop: 0 }}>Create Team</h3>
           <div className="actions-row">
-            <input className="auth-input mono" placeholder="Team ID" value={teamForm.teamId} onChange={(e) => setTeamForm((p) => ({ ...p, teamId: e.target.value.toUpperCase() }))} />
-            <input className="auth-input" placeholder="Team Name" value={teamForm.teamName} onChange={(e) => setTeamForm((p) => ({ ...p, teamName: e.target.value }))} />
-            <input className="auth-input" placeholder="Password" value={teamForm.password} onChange={(e) => setTeamForm((p) => ({ ...p, password: e.target.value }))} />
-            <input className="auth-input" type="number" placeholder="Priority" value={teamForm.priority} onChange={(e) => setTeamForm((p) => ({ ...p, priority: Number(e.target.value) }))} />
+            <input className="auth-input mono" placeholder="Enter team ID" value={teamForm.teamId} onChange={(e) => setTeamForm((p) => ({ ...p, teamId: e.target.value.toUpperCase() }))} />
+            <input className="auth-input" placeholder="Enter team name" value={teamForm.teamName} onChange={(e) => setTeamForm((p) => ({ ...p, teamName: e.target.value }))} />
+            <input className="auth-input" placeholder="Enter team password" value={teamForm.password} onChange={(e) => setTeamForm((p) => ({ ...p, password: e.target.value }))} />
+            <input className="auth-input" type="number" placeholder="Enter priority number" value={teamForm.priority} onChange={(e) => setTeamForm((p) => ({ ...p, priority: Number(e.target.value) }))} />
             <button className="btn btn-primary" onClick={() => execute(() => adminCreateTeam(teamForm), "Team created")}>Create Team</button>
           </div>
         </section>
@@ -79,13 +79,13 @@ export default function AdminPanel() {
         <section className="panel" style={{ marginBottom: 14 }}>
           <h3 style={{ marginTop: 0 }}>Create Account</h3>
           <div className="actions-row">
-            <input className="auth-input" placeholder="Username" value={accountForm.username} onChange={(e) => setAccountForm((p) => ({ ...p, username: e.target.value }))} />
+            <input className="auth-input" placeholder="Enter account username" value={accountForm.username} onChange={(e) => setAccountForm((p) => ({ ...p, username: e.target.value }))} />
             <select className="auth-input" value={accountForm.difficulty} onChange={(e) => setAccountForm((p) => ({ ...p, difficulty: e.target.value }))}>
               <option value="easy">easy</option>
               <option value="medium">medium</option>
               <option value="hard">hard</option>
             </select>
-            <input className="auth-input" placeholder="Correct Password" value={accountForm.password} onChange={(e) => setAccountForm((p) => ({ ...p, password: e.target.value }))} />
+            <input className="auth-input" placeholder="Enter correct account password" value={accountForm.password} onChange={(e) => setAccountForm((p) => ({ ...p, password: e.target.value }))} />
             <button className="btn btn-primary" onClick={() => execute(() => adminCreateAccount(accountForm), "Account created")}>Create Account</button>
           </div>
         </section>
@@ -104,7 +104,7 @@ export default function AdminPanel() {
               <option>Pattern Hint</option>
               <option>Security Logs</option>
             </select>
-            <input className="auth-input" placeholder="Clue text" value={clueForm.text} onChange={(e) => setClueForm((p) => ({ ...p, text: e.target.value }))} />
+            <input className="auth-input" placeholder="Enter clue text" value={clueForm.text} onChange={(e) => setClueForm((p) => ({ ...p, text: e.target.value }))} />
             <input className="auth-input" type="number" min="10" max="15" value={clueForm.cost} onChange={(e) => setClueForm((p) => ({ ...p, cost: Number(e.target.value) }))} />
             <button className="btn btn-primary" onClick={() => execute(() => adminAddClue(clueForm.accountId, clueForm), "Clue added")}>Add Clue</button>
           </div>
@@ -124,8 +124,8 @@ export default function AdminPanel() {
                 <option key={t.teamId} value={t.teamId}>{t.teamId}</option>
               ))}
             </select>
-            <input className="auth-input" placeholder="Category" value={fakeForm.category} onChange={(e) => setFakeForm((p) => ({ ...p, category: e.target.value }))} />
-            <input className="auth-input" placeholder="Fake clue text" value={fakeForm.text} onChange={(e) => setFakeForm((p) => ({ ...p, text: e.target.value }))} />
+            <input className="auth-input" placeholder="Enter clue category" value={fakeForm.category} onChange={(e) => setFakeForm((p) => ({ ...p, category: e.target.value }))} />
+            <input className="auth-input" placeholder="Enter fake clue text" value={fakeForm.text} onChange={(e) => setFakeForm((p) => ({ ...p, text: e.target.value }))} />
             <button className="btn btn-primary" onClick={() => execute(() => adminInjectFakeClue(fakeForm), "Fake clue injected")}>Inject</button>
           </div>
         </section>

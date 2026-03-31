@@ -61,7 +61,7 @@ export default function Login() {
         <input
           id="team-id"
           className="auth-input mono"
-          placeholder="ALPHA01"
+          placeholder="Enter team ID"
           value={teamId}
           onChange={(e) => setTeamId(e.target.value.toUpperCase())}
         />
@@ -85,6 +85,10 @@ export default function Login() {
         </p>
 
         <p className="auth-sub" style={{ marginTop: "12px", marginBottom: 0 }}>
+          New team? <Link to="/signup" className="auth-link">Create account</Link>
+        </p>
+
+        <p className="auth-sub" style={{ marginTop: "10px", marginBottom: 0 }}>
           Admin access? <Link to="/admin-login" className="auth-link">Use admin login</Link>
         </p>
       </form>

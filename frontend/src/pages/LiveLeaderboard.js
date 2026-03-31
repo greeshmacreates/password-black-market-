@@ -3,7 +3,7 @@ import { io } from "socket.io-client";
 import Sidebar from "../components/Sidebar";
 import { getLeaderboard } from "../services/api";
 
-const SOCKET_BASE = process.env.REACT_APP_API_URL || "http://localhost:3001";
+const SOCKET_BASE = process.env.REACT_APP_API_URL || window.location.origin;
 
 export default function LiveLeaderboard() {
   const [rows, setRows] = useState([]);

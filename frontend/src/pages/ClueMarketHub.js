@@ -1,24 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { buyClue, getAccounts, getDashboard, getLeaderboard, submitPassword } from "../services/api";
-import { updateTeamSession } from "../services/session";
+import { buyClue, getAccounts, getDashboard, getTeams } from "../services/api";
 
 export default function ClueMarketHub() {
   const [accounts, setAccounts] = useState([]);
   const [team, setTeam] = useState(null);
-  const [targetTeams, setTargetTeams] = useState([]);
-  const [misinfoPayload, setMisinfoPayload] = useState({ targetTeamId: "", fakeCategory: "Pattern Hint", fakeText: "" });
   const [buyingClues, setBuyingClues] = useState({});
 
   const refresh = async () => {
-    try {
-      const [accountsRes, dashboardRes, teamsRes] = await Promise.all([getAccounts(), getDashboard(), getLeaderboard()]);
-      setAccounts(accountsRes.data || []);
-      setTeam(dashboardRes.data.team);
-      setTargetTeams((teamsRes.data || []).filter((t) => t.teamId !== dashboardRes.data.team.teamId));
-    } catch (e) {
-      console.error(e);
-    }
+    const [accountsRes, dashboardRes] = await Promise.all([getAccounts(), getDashboard()]);
+    setAccounts(accountsRes.data || []);
+    setTeam(dashboardRes.data.team);
   };
 
   useEffect(() => {
@@ -46,39 +38,6 @@ export default function ClueMarketHub() {
         delete next[key];
         return next;
       });
-    }
-  };
-
-  const crackWithMisinformationChoice = async (accountId) => {
-    const password = window.prompt("Enter correct password for selected account");
-    if (!password) return;
-
-    if (team?.priority === 1 && misinfoPayload.targetTeamId) {
-      try {
-        const res = await submitPassword({
-          accountId,
-          password,
-          chooseReward: "inject",
-          targetTeamId: misinfoPayload.targetTeamId,
-          fakeCategory: misinfoPayload.fakeCategory,
-          fakeText: misinfoPayload.fakeText || "Possible pattern contains mirrored symbols."
-        });
-        updateTeamSession(res.data.team);
-        alert("ACCESS GRANTED + fake clue injected");
-        await refresh();
-      } catch (error) {
-        alert(error?.response?.data?.message || "Submission failed");
-      }
-      return;
-    }
-
-    try {
-      const res = await submitPassword({ accountId, password, chooseReward: "coins" });
-      updateTeamSession(res.data.team);
-      alert(res.data.message);
-      await refresh();
-    } catch (error) {
-      alert(error?.response?.data?.message || "Submission failed");
     }
   };
 
@@ -135,29 +94,6 @@ export default function ClueMarketHub() {
                   </div>
                 ))}
               </div>
-
-              <button className="btn btn-ghost" onClick={() => crackWithMisinformationChoice(account.accountId)}>
-                Submit Password For This Account
-              </button>
-
-              {account.crackedBy && team?.priority === 1 ? (
-                <div style={{ marginTop: 12, padding: 12, background: "rgba(200,100,100,0.1)", borderRadius: 6 }}>
-                  <p style={{ margin: "0 0 10px 0", fontSize: 12, fontWeight: 600, color: "#aaa" }}>✓ First crack! Inject misinformation?</p>
-                  <select className="auth-input" value={misinfoPayload.targetTeamId} onChange={(e) => setMisinfoPayload((prev) => ({ ...prev, targetTeamId: e.target.value }))} style={{ width: "100%", marginBottom: 8, fontSize: 12 }}>
-                    <option value="">Select target team</option>
-                    {targetTeams.map((t) => (
-                      <option key={t.teamId} value={t.teamId}>{t.teamId}</option>
-                    ))}
-                  </select>
-                  <select className="auth-input" value={misinfoPayload.fakeCategory} onChange={(e) => setMisinfoPayload((prev) => ({ ...prev, fakeCategory: e.target.value }))} style={{ width: "100%", marginBottom: 8, fontSize: 12 }}>
-                    <option>Social Media Leak</option>
-                    <option>Database Leak</option>
-                    <option>Pattern Hint</option>
-                    <option>Security Logs</option>
-                  </select>
-                  <input className="auth-input" placeholder="Fake clue text" value={misinfoPayload.fakeText} onChange={(e) => setMisinfoPayload((prev) => ({ ...prev, fakeText: e.target.value }))} style={{ width: "100%", fontSize: 12 }} />
-                </div>
-              ) : null}
             </div>
           ))}
         </section>

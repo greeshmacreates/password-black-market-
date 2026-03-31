@@ -1,135 +1,195 @@
-# Password Black Market
+# Password Black Market - Cipher Arena
 
-A MERN-stack competitive "password cracking" game where teams use embedded currency to purchase clues, guess passwords, and climb a live leaderboard. 
+A full-stack web application for a hacking/password cracking competition game.
 
-This project integrates **React (Frontend)**, **Express & Node.js (Backend)**, **MongoDB** (for game state), and **Google Firebase Authentication** (for secure, real-time team logins).
+## Quick Start
 
-## 🚀 Features
-- **Team Dashboards:** Real-time visibility into coins, purchased clues, and overall score.
-- **Clue Market:** Spend earned coins to unveil hints about difficult passwords.
-- **Secure Password Submission:** Crack accounts directly from the UI terminal to earn hefty points and coin rewards.
-- **Admin Engine:** Robust administrative oversight to create team profiles, start/stop timers, or manually manipulate game phases. Admin accounts are hidden from the live player leaderboards.
-- **Firebase Auth Sync:** Teams created in the Admin Panel are instantly registered directly into Google Firebase Authentication.
+### Local Development
 
----
+1. **Backend Setup:**
+   ```bash
+   cd backend
+   npm install
+   npm start
+   ```
+   Backend runs on `http://localhost:5000`
 
-## 🛠️ Prerequisites
-Before running the project locally, ensure you have the following installed:
-1. **Node.js** (v16 or higher recommended)
-2. **MongoDB Database** (A free MongoDB Atlas cluster or local MongoDB server)
-3. **Firebase Project** (With **Email/Password** authentication enabled and a Service Account JSON downloaded from Project Settings > Service Accounts)
+2. **Frontend Setup (in another terminal):**
+   ```bash
+   cd frontend
+   npm install
+   npm start
+   ```
+   Frontend runs on `http://localhost:3000`
 
----
+### Production Deployment
 
-## ⚙️ Environment Configuration
+#### Prerequisites
+- Node.js 18+
+- MongoDB (local or cloud)
+- A domain name (e.g., sparklingwater12.com)
 
-Navigate to the `backend/` directory and create/edit the `.env` file. You must provide your MongoDB connection string and your Firebase Service Account JSON credentials.
+#### Step 1: Configure Environment Variables
 
-**`backend/.env`**
+**Backend** (`backend/.env`):
 ```env
-# Set to false to strictly enforce Firebase Authentication verification
-FIREBASE_AUTH_DISABLED=false
-
-# MongoDB Connection String
-MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/?retryWrites=true&w=majority
-
-# Firebase Service Account JSON (Minified into a single line)
-FIREBASE_SERVICE_ACCOUNT_JSON='{ "type": "service_account", "project_id": "...", "private_key_id": "...", "private_key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n", "client_email": "...", "client_id": "...", "auth_uri": "...", "token_uri": "..." }'
+PORT=5000
+NODE_ENV=production
+CORS_ORIGIN=https://yourdomain.com
+MONGO_URI=mongodb+srv://user:password@cluster.mongodb.net/db
+JWT_SECRET=your-secure-secret-here-change-this
+FIREBASE_AUTH_DISABLED=true
 ```
 
-*Note: Ensure the `\n` characters in your Firebase private key are escaped literally as `\\n` if placing them on a single line.*
-
----
-
-## 🏗️ Detailed Local Setup & Installation
-
-### Step 1: Install Dependencies
-Open your terminal at the very root of the project (`password-black-market-/`) and install the root dependencies. It is recommended to also install the nested dependencies.
+#### Step 2: Build Frontend
 ```bash
-# In the root directory
+cd frontend
 npm install
+npm run build
+```
 
-# In the backend
-cd backend
+#### Step 3: Deploy
+
+**Option A: Using Your Own Server (VPS/Dedicated)**
+```bash
+# On your server
+cd /path/to/project/backend
 npm install
-
-# In the frontend
-cd ../frontend
-npm install
+npm start
 ```
 
-### Step 2: Initialize the Database and First Admin
-Because the application is highly secure, you cannot "Sign Up" as an admin from the website. You must inject the very first admin directly into your database.
+**Option B: Using Render/Railway/Heroku**
+1. Push to GitHub
+2. Connect repository to hosting platform
+3. Set environment variables in platform dashboard
+4. Deploy
 
-1. Navigate to the `backend/` directory:
+#### Step 4: Connect Domain
+- In your hosting platform dashboard, add custom domain
+- Update your domain registrar DNS:
+  - Point A record to server IP, OR
+  - Use CNAME/nameservers provided by hosting platform
+
+## Project Structure
+
+```
+password-black-market/
+├── backend/
+│   ├── index.js              # Main server file
+│   ├── routes/
+│   │   └── clues.js          # API routes
+│   ├── middleware/           # Authentication middleware
+│   ├── models/               # Mongoose models
+│   ├── utils/                # Utility functions
+│   ├── package.json
+│   └── .env                  # Environment variables (don't commit!)
+│
+├── frontend/
+│   ├── src/
+│   │   ├── pages/            # React pages
+│   │   ├── components/       # React components
+│   │   ├── services/         # API services
+│   │   └── App.js
+│   ├── public/
+│   ├── package.json
+│   ├── build/                # Production build (generated)
+│   └── .env                  # Environment variables
+│
+├── Procfile                  # For Heroku/Railway
+└── README.md
+```
+
+## API Endpoints
+
+### Public
+- `GET /health` - Health check
+- `POST /api/login` - Team login
+- `POST /api/signup` - Team signup
+
+### Protected (Require Authentication)
+- `GET /api/me` - Get current user
+- `GET /api/accounts` - List accounts
+- `POST /api/buy-clue` - Purchase a clue
+
+## Environment Variables Reference
+
+### Backend
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| PORT | No | 5000 | Server port |
+| NODE_ENV | No | development | Environment (production/development) |
+| CORS_ORIGIN | No | http://localhost:3000 | Frontend URL |
+| MONGO_URI | Yes | - | MongoDB connection string |
+| JWT_SECRET | No | dev-insecure | JWT signing secret |
+| FIREBASE_AUTH_DISABLED | No | true | Disable Firebase auth |
+
+### Frontend
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| REACT_APP_API_URL | No | http://localhost:5000 | Backend API URL |
+
+## Database
+
+The application uses MongoDB for data persistence. 
+
+**Local MongoDB:**
 ```bash
-cd backend
+# Install MongoDB
+# macOS: brew install mongodb-community
+# Ubuntu: sudo apt-get install mongodb
+
+# Start MongoDB
+mongod
 ```
 
-2. Run the seeding script to create initial game logic (optional fake clues and teams):
+**MongoDB Atlas (Cloud):**
+1. Go to [mongodb.com/cloud/atlas](https://mongodb.com/cloud/atlas)
+2. Create free cluster
+3. Get connection string
+4. Add to `MONGO_URI` in `.env`
+
+## Troubleshooting
+
+### Port Already in Use
 ```bash
-node seed.js
+# Kill process using port 5000
+lsof -i :5000
+kill -9 <PID>
 ```
 
-3. **CRITICAL:** Run the following one-liner to spawn the default `ADMIN` account in your MongoDB:
-```bash
-node -e "require('dotenv').config(); const mongoose=require('mongoose'); const Team=require('./models/Team'); mongoose.connect(process.env.MONGO_URI).then(async()=>{ await Team.create({teamId:'ADMIN', teamName:'Game Admin', password:'admin123', firebaseUID:'dev-uid-admin', isAdmin:true, coins:0, priority:1}); console.log('Admin account created!'); process.exit(); }).catch(console.error);"
-```
+### MongoDB Connection Failed
+- Check MongoDB is running
+- Verify connection string
+- For Atlas: whitelist IP in cluster settings
 
-4. **Sync Admin to Firebase Auth:**
-Run the Firebase synchronization script. This takes the `ADMIN` account you just created in MongoDB and officially registers it as `admin@blackmarket.local` in your Firebase Authentication project:
-```bash
-node setupFirebase.js
-```
+### Frontend shows localhost URLs
+- Update `frontend/.env` with correct domain
+- Rebuild frontend: `npm run build`
+- Restart backend
 
----
+### CORS errors
+- Verify `CORS_ORIGIN` in `backend/.env`
+- Should match frontend domain exactly
 
-## 🚀 Running the Application
+## Tech Stack
 
-### Concurrent Mode (Recommended)
-You can boot up both the React frontend and the Express backend simultaneously from the root directory.
-```bash
-# From the root directory:
-npm run dev
-```
+**Frontend:**
+- React 19+
+- React Router v6
+- Axios
+- CSS3
 
-### Manual Mode (Separate Terminals)
-If you prefer seeing separate console outputs:
-- **Terminal 1 (Backend):** `cd backend` -> `npm run dev` (Runs on Port 3001)
-- **Terminal 2 (Frontend):** `cd frontend` -> `npm start` (Runs on Port 3000)
+**Backend:**
+- Express.js 5+
+- Node.js 18+
+- MongoDB/Mongoose
+- JWT Authentication
+- CORS
 
----
+## License
 
-## 🎮 How to Play / Administer the Game
+ISC
 
-1. **Log into the Admin Panel**
-   - Open your browser to: `http://localhost:3000/admin-login`
-   - **Admin ID:** `ADMIN`
-   - **Password:** `admin123`
-   
-2. **Registering Teams**
-   - Click **Create Team** from the Admin Panel. 
-   - Fill out the Team ID and Password. 
-   - Behind the scenes, the API will automatically lock the team into both MongoDB and Firebase Auth safely.
-   
-3. **Adding Victim Accounts**
-   - Use the **Create Account** module to define "victims" (e.g., username `john_doe`, difficulty `easy`, password `John@123`).
-   - Teams will try to guess this exact password to earn points.
+## Support
 
-4. **Team Login**
-   - Have the players go to `http://localhost:3000/` to log in using the credentials you just generated for them.
-   - They can immediately start buying clues and submitting passwords!
-
----
-
-## 📡 API Overview
-
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/api/login` | POST | Authenticates a team. Verifies Firebase tokens. |
-| `/api/me` | GET | Profile view of logged-in team details. |
-| `/api/accounts` | GET | List available accounts to attack. Masks unpurchased clues. |
-| `/api/buy-clue` | POST | Deducts coins and permanently unlocks a clue. |
-| `/api/submit` | POST | Submits a password guess. Awards points for correct answers. |
-| `/api/admin/teams` | POST | Creates a team concurrently in MongoDB and Firebase Auth. |
-| `/api/admin/overview`| GET | Returns live leaderboard (Admins are strictly excluded). |
+For deployment help, refer to [RAILWAY_DEPLOY.md](./RAILWAY_DEPLOY.md) or [HOSTING_INSTRUCTIONS.md](./HOSTING_INSTRUCTIONS.md)

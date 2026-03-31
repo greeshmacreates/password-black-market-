@@ -1,22 +1,33 @@
 {
-  "name": "backend",
+  "name": "password-black-market-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Cipher Arena - Password Cracking Competition Backend",
   "main": "index.js",
   "scripts": {
-    "dev": "node index.js",
     "start": "node index.js",
+    "dev": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "cipher",
+    "hacking",
+    "competition",
+    "password",
+    "cracking"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
     "firebase-admin": "^12.6.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.3.3"
   }
 }

@@ -1,11 +1,27 @@
 import axios from "axios";
-import { firebaseTeamLogin, isFirebaseEnabled } from "./firebaseAuth";
 
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:3001";
+// Prefer explicit env URL. Otherwise use current origin (works for local + hosting)
+// and finally fallback to localhost backend.
+const API_BASE = process.env.REACT_APP_API_URL
+  || "";
 
 const API = axios.create({
-  baseURL: API_BASE
+  baseURL: API_BASE,
+  timeout: 10000
 });
+
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Optional: centralize error format
+    if (error.response) {
+      console.error("API response error", error.response.status, error.response.data);
+      return Promise.reject(error.response.data);
+    }
+    console.error("API network error", error.message);
+    return Promise.reject({ message: "Network error, please try again" });
+  }
+);
 
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
@@ -29,7 +45,91 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-// ===== GAME PHASE LOGIC (Kept local for immediate UI timer) =====
+// ===== MOCK DATA FOR FRONTEND TESTING =====
+
+const mockTeams = {
+  ALPHA01: {
+    teamId: "ALPHA01",
+    teamName: "Alpha Team",
+    password: "alpha123",
+    firebaseUID: "ALPHA01",
+    isAdmin: false,
+    priority: 1,
+    coins: 120,
+    score: 370,
+    cracked: { easy: 2, medium: 1, hard: 0 }
+  },
+  BETA02: {
+    teamId: "BETA02",
+    teamName: "Beta Team",
+    password: "beta123",
+    firebaseUID: "BETA02",
+    isAdmin: false,
+    priority: 2,
+    coins: 120,
+    score: 270,
+    cracked: { easy: 1, medium: 1, hard: 0 }
+  },
+  ADMIN: {
+    teamId: "ADMIN",
+    teamName: "Game Admin",
+    password: "admin123",
+    firebaseUID: "ADMIN",
+    isAdmin: true,
+    priority: 0,
+    coins: 0,
+    score: 0,
+    cracked: { easy: 0, medium: 0, hard: 0 }
+  }
+};
+
+const mockAccounts = [
+  {
+    accountId: "acc-easy-1",
+    username: "john.smith",
+    difficulty: "easy",
+    password: "smith2023",
+    crackedBy: "ALPHA01",
+    clues: [
+      { clueId: "c1", category: "Social Media Leak", text: "Password contains 'smith'", cost: 10, unlocked: true, fake: false },
+      { clueId: "c2", category: "Database Leak", text: "Has a year (2020-2024)", cost: 12, unlocked: true, fake: false }
+    ]
+  },
+  {
+    accountId: "acc-easy-2",
+    username: "admin.user",
+    difficulty: "easy",
+    password: "admin123",
+    crackedBy: null,
+    clues: [
+      { clueId: "c3", category: "Pattern Hint", text: "Starts with 'admin'", cost: 10, unlocked: false, fake: false },
+      { clueId: "c4", category: "Security Logs", text: "Contains a number", cost: 12, unlocked: false, fake: false }
+    ]
+  },
+  {
+    accountId: "acc-medium-1",
+    username: "db.admin",
+    difficulty: "medium",
+    password: "db@2024",
+    crackedBy: "ALPHA01",
+    clues: [
+      { clueId: "c5", category: "Database Leak", text: "Format: role@year", cost: 13, unlocked: true, fake: false },
+      { clueId: "c6", category: "Pattern Hint", text: "Contains @ symbol", cost: 14, unlocked: true, fake: false }
+    ]
+  },
+  {
+    accountId: "acc-hard-1",
+    username: "ops.root",
+    difficulty: "hard",
+    password: "R00t!Matrix#9",
+    crackedBy: null,
+    clues: [
+      { clueId: "c7", category: "Security Logs", text: "Upper + lower + symbols", cost: 15, unlocked: false, fake: false },
+      { clueId: "c8", category: "Database Leak", text: "Contains 'Matrix'", cost: 14, unlocked: false, fake: false }
+    ]
+  }
+];
+
 const RECON_DURATION_SEC = 1 * 60 * 60 + 45 * 60; // 1h 45m
 const CHAOS_DURATION_SEC = 30 * 60; // 30m
 const TOTAL_DURATION_SEC = RECON_DURATION_SEC + CHAOS_DURATION_SEC; // 2h 15m
@@ -73,23 +173,43 @@ const getPhaseInfo = () => {
   };
 };
 
-// ===== TEAM ENDPOINTS =====
+const mockLeaderboard = [
+  { rank: 1, teamId: "ALPHA01", teamName: "Alpha Team", score: 370, coins: 120, cracked: { easy: 2, medium: 1, hard: 0 } },
+  { rank: 2, teamId: "BETA02", teamName: "Beta Team", score: 270, coins: 120, cracked: { easy: 1, medium: 1, hard: 0 } }
+];
+
+const clampCoins = (value) => Math.max(0, Number(value || 0));
+
+// ===== MOCK API ENDPOINTS =====
 
 export const authLogin = async (data) => {
-  if (isFirebaseEnabled()) {
-    const fbRes = await firebaseTeamLogin(data.teamId, data.password);
-    if (!fbRes.success) {
-      throw new Error(`Authentication Failed: ${fbRes.reason}`);
-    }
-    // Set token immediately so the API POST below attaches it automatically in the interceptor
-    localStorage.setItem("token", fbRes.token);
+  try {
+    console.log("[authLogin] sending payload", data);
+    const res = await API.post("/api/login", {
+      teamId: data.teamId,
+      password: data.password
+    });
+    console.log("[authLogin] response", res.data);
+    return { data: res.data };
+  } catch (error) {
+    console.error("[authLogin] error", error);
+    const message = error?.message || "Failed to login";
+    return Promise.reject({ message });
   }
+};
 
-  const res = await API.post("/api/login", {
-    teamId: data.teamId,
-    password: data.password
-  });
-  return { data: res.data };
+export const authSignup = async (data) => {
+  try {
+    const res = await API.post("/api/signup", {
+      teamId: data.teamId,
+      teamName: data.teamName,
+      password: data.password
+    });
+    return { data: res.data };
+  } catch (error) {
+    const message = error?.message || "Failed to signup";
+    return Promise.reject({ message });
+  }
 };
 
 export const getDashboard = async () => {
@@ -118,17 +238,17 @@ export const getAccounts = async () => {
   return { data: res.data.accounts };
 };
 
-export const verifyAccountPassword = async (data) => {
-  const res = await API.post("/api/submit", data);
-  // Also update team object in local storage
-  if (res.data.team) {
-    localStorage.setItem("team", JSON.stringify(res.data.team));
+export const verifyAccountPassword = async ({ accountId, password }) => {
+  const account = mockAccounts.find((a) => a.accountId === accountId);
+  if (!account) {
+    return Promise.reject({ response: { data: { message: "Account not found" } } });
   }
-  return { data: res.data };
-};
 
-export const submitPassword = async (data) => {
-  return verifyAccountPassword(data);
+  if (String(password || "") === String(account.password)) {
+    return Promise.resolve({ data: { message: "ACCESS GRANTED" } });
+  }
+
+  return Promise.reject({ response: { data: { message: "Invalid password" } } });
 };
 
 export const buyClue = async (data) => {
@@ -139,66 +259,148 @@ export const buyClue = async (data) => {
   return { data: res.data };
 };
 
+export const submitPassword = async (data) => {
+  const sessionTeam = JSON.parse(localStorage.getItem("team") || "{}");
+  const team = mockTeams[sessionTeam.teamId] || mockTeams.ALPHA01;
+  team.score += 100;
+  team.coins = clampCoins(team.coins + 20);
+  localStorage.setItem("team", JSON.stringify(team));
+  return Promise.resolve({
+    data: {
+      status: "granted",
+      message: "ACCESS GRANTED",
+      rewardCoins: 20,
+      isFirstCrack: true,
+      team
+    }
+  });
+};
+
 export const getLeaderboard = async () => {
-  const res = await API.get("/api/leaderboard");
-  return { data: res.data };
-};
-
-export const runChaosAction = async (data) => {
-  const res = await API.post("/api/chaos", data);
-  return { data: res.data };
-};
-
-// ===== ADMIN ENDPOINTS =====
-
-export const adminGetOverview = async () => {
-  const res = await API.get("/api/admin/overview");
-  return { data: res.data };
+  return Promise.resolve({ data: mockLeaderboard });
 };
 
 export const getTeams = async () => {
-  const res = await API.get("/api/admin/overview");
-  return { data: res.data.teams };
+  return Promise.resolve({
+    data: [
+      { teamId: "ALPHA01", teamName: "Alpha Team", priority: 1 },
+      { teamId: "BETA02", teamName: "Beta Team", priority: 2 }
+    ]
+  });
+};
+
+export const runChaosAction = async (data) => {
+  const sessionTeam = JSON.parse(localStorage.getItem("team") || "{}");
+  const team = mockTeams[sessionTeam.teamId] || mockTeams.ALPHA01;
+
+  const actionCost = 10;
+  if (clampCoins(team.coins) < actionCost) {
+    return Promise.reject({
+      response: { data: { message: "Insufficient funds" } }
+    });
+  }
+
+  team.coins = clampCoins(team.coins - 10);
+  localStorage.setItem("team", JSON.stringify(team));
+  return Promise.resolve({
+    data: {
+      message: "Chaos action executed",
+      coins: team.coins
+    }
+  });
+};
+
+export const adminGetOverview = async () => {
+  return Promise.resolve({
+    data: {
+      game: getPhaseInfo(),
+      teams: mockLeaderboard,
+      accounts: mockAccounts.map(a => ({
+        accountId: a.accountId,
+        username: a.username,
+        difficulty: a.difficulty,
+        clues: a.clues.length,
+        crackedBy: a.crackedBy
+      }))
+    }
+  });
 };
 
 export const adminCreateTeam = async (data) => {
-  const res = await API.post("/api/admin/teams", data);
-  return { data: res.data };
+  const newTeam = {
+    teamId: data.teamId.toUpperCase(),
+    teamName: data.teamName,
+    password: data.password,
+    isAdmin: false,
+    priority: data.priority || 3,
+    coins: 120,
+    score: 0,
+    cracked: { easy: 0, medium: 0, hard: 0 }
+  };
+  mockTeams[newTeam.teamId] = newTeam;
+  return Promise.resolve({
+    data: {
+      message: "Team created",
+      team: newTeam
+    }
+  });
 };
 
 export const adminCreateAccount = async (data) => {
-  const res = await API.post("/api/admin/accounts", data);
-  return { data: res.data };
+  return Promise.resolve({
+    data: {
+      message: "Account created",
+      account: data
+    }
+  });
 };
 
 export const adminAddClue = async (accountId, data) => {
-  // Pass accountId along with clue payload
-  const res = await API.post("/api/admin/clues", { accountUsername: accountId, ...data });
-  return { data: res.data };
+  return Promise.resolve({
+    data: {
+      message: "Clue added",
+      clue: data
+    }
+  });
 };
 
 export const adminInjectFakeClue = async (data) => {
-  const res = await API.post("/api/admin/clues", { ...data, isFake: true });
-  return { data: res.data };
+  return Promise.resolve({
+    data: {
+      message: "Fake clue injected",
+      clue: data
+    }
+  });
 };
 
 export const adminStartGame = async (data) => {
-  mockGameStartAt = Date.now();
   manualPhaseOverride = null;
-  const res = await API.post("/api/admin/game/start", data);
-  return { data: res.data };
+  mockGameStartAt = Date.now();
+  return Promise.resolve({
+    data: {
+      message: "Game started",
+      phase: getPhaseInfo()
+    }
+  });
 };
 
 export const adminStopGame = async () => {
   manualPhaseOverride = "ended";
-  const res = await API.post("/api/admin/game/stop");
-  return { data: res.data };
+  return Promise.resolve({
+    data: {
+      message: "Game stopped"
+    }
+  });
 };
 
 export const adminSetPhase = async (data) => {
   manualPhaseOverride = data.phase;
-  const res = await API.post("/api/admin/game/phase", data);
-  return { data: res.data };
+  return Promise.resolve({
+    data: {
+      message: "Phase changed",
+      phase: getPhaseInfo()
+    }
+  });
 };
 
 export default API;

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { authSignup } from "../services/api";
+import { setSession } from "../services/session";
 import "../App.css";
 
 export default function Signup() {
@@ -8,8 +10,9 @@ export default function Signup() {
   const [teamName, setTeamName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
 
     if (!teamId || !teamName || !password || !confirmPassword) {
@@ -22,17 +25,31 @@ export default function Signup() {
       return;
     }
 
-    const teamData = {
-      teamId,
-      teamName,
-      coins: 120,
-      easy: 0,
-      medium: 0,
-      hard: 0
-    };
+    if (teamId.trim().length < 4) {
+      alert("Team ID must be at least 4 characters");
+      return;
+    }
 
-    localStorage.setItem("team", JSON.stringify(teamData));
-    navigate("/dashboard");
+    if (password.length < 4) {
+      alert("Password must be at least 4 characters");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await authSignup({
+        teamId: teamId.trim().toUpperCase(),
+        teamName: teamName.trim(),
+        password
+      });
+
+      setSession({ token: res.data.token, team: res.data.team });
+      navigate("/dashboard");
+    } catch (error) {
+      alert(error?.message || "Signup failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,7 +63,7 @@ export default function Signup() {
         <input
           id="signup-team-name"
           className="auth-input"
-          placeholder="Night Owls"
+          placeholder="Enter team name"
           value={teamName}
           onChange={(e) => setTeamName(e.target.value)}
         />
@@ -55,7 +72,7 @@ export default function Signup() {
         <input
           id="signup-team-id"
           className="auth-input mono"
-          placeholder="TEAM01"
+          placeholder="Enter team ID"
           value={teamId}
           onChange={(e) => setTeamId(e.target.value.toUpperCase())}
         />
@@ -65,7 +82,7 @@ export default function Signup() {
           id="signup-password"
           className="auth-input"
           type="password"
-          placeholder="••••••••"
+          placeholder="Enter password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -75,13 +92,13 @@ export default function Signup() {
           id="signup-confirm-password"
           className="auth-input"
           type="password"
-          placeholder="••••••••"
+          placeholder="Confirm password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
         />
 
-        <button className="btn btn-primary" style={{ width: "100%", marginTop: "4px" }} type="submit">
-          Create Team
+        <button className="btn btn-primary" style={{ width: "100%", marginTop: "4px" }} type="submit" disabled={loading}>
+          {loading ? "Creating..." : "Create Team"}
         </button>
 
         <p className="auth-sub" style={{ marginTop: "12px", marginBottom: 0 }}>

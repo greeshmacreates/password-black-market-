@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import "./App.css";
 
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import AdminLogin from "./pages/AdminLogin";
 import TeamDashboard from "./pages/TeamDashboard";
 import ClueMarketHub from "./pages/ClueMarketHub";
@@ -18,6 +19,7 @@ function AnimatedRoutes() {
     <div key={location.pathname} className="route-transition">
       <Routes location={location}>
         <Route path="/" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         <Route path="/admin-login" element={<AdminLogin />} />
 
         <Route

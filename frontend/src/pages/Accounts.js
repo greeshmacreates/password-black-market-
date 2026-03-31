@@ -9,6 +9,7 @@ export default function Accounts() {
   const [activeAccountId, setActiveAccountId] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [terminalResult, setTerminalResult] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -29,12 +30,14 @@ export default function Accounts() {
     setActiveAccountId(accountId);
     setPasswordInput("");
     setTerminalResult("");
+    setShowPassword(false);
   };
 
   const closeTerminal = () => {
     setActiveAccountId("");
     setPasswordInput("");
     setTerminalResult("");
+    setShowPassword(false);
   };
 
   const handlePasswordSubmit = async () => {
@@ -128,12 +131,21 @@ export default function Accounts() {
                   <span className="terminal-prompt mono">root@{activeAccount.username}:~$</span>
                   <input
                     className="terminal-input"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder="enter-password"
+                    placeholder="Enter account password"
                     autoFocus
                   />
+                  <button
+                    className="terminal-btn"
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{ marginRight: "8px", padding: "8px 12px" }}
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? "HIDE" : "SHOW"}
+                  </button>
                   <button className="terminal-btn" type="submit">EXECUTE</button>
                 </form>
 
