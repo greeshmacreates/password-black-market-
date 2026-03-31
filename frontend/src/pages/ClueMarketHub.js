@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { buyClue, getAccounts, getDashboard, getTeams, submitPassword } from "../services/api";
+import { buyClue, getAccounts, getDashboard, getLeaderboard, submitPassword } from "../services/api";
 import { updateTeamSession } from "../services/session";
 
 export default function ClueMarketHub() {
@@ -11,10 +11,14 @@ export default function ClueMarketHub() {
   const [buyingClues, setBuyingClues] = useState({});
 
   const refresh = async () => {
-    const [accountsRes, dashboardRes, teamsRes] = await Promise.all([getAccounts(), getDashboard(), getTeams()]);
-    setAccounts(accountsRes.data || []);
-    setTeam(dashboardRes.data.team);
-    setTargetTeams((teamsRes.data || []).filter((t) => t.teamId !== dashboardRes.data.team.teamId));
+    try {
+      const [accountsRes, dashboardRes, teamsRes] = await Promise.all([getAccounts(), getDashboard(), getLeaderboard()]);
+      setAccounts(accountsRes.data || []);
+      setTeam(dashboardRes.data.team);
+      setTargetTeams((teamsRes.data || []).filter((t) => t.teamId !== dashboardRes.data.team.teamId));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   useEffect(() => {

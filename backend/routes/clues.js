@@ -1,173 +1,13 @@
 const express = require("express");
 const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
+const Team = require("../models/Team");
+const Account = require("../models/Account");
+const Clue = require("../models/Clue");
+const Submission = require("../models/Submission");
 
 const router = express.Router();
 
-const teams = [
-  {
-    teamId: "ALPHA01",
-    teamName: "Alpha Team",
-    password: "ALPHA01",
-    firebaseUID: "ALPHA01",
-    coins: 120,
-    priority: 1,
-    score: 370,
-    crackedAccounts: [
-      { username: "john.smith", difficulty: "easy" },
-      { username: "db.admin", difficulty: "medium" }
-    ],
-    purchasedClues: ["clue-1", "clue-2", "clue-5"],
-    isAdmin: false
-  },
-  {
-    teamId: "BETA02",
-    teamName: "Beta Team",
-    password: "BETA02",
-    firebaseUID: "BETA02",
-    coins: 120,
-    priority: 2,
-    score: 270,
-    crackedAccounts: [
-      { username: "john.smith", difficulty: "easy" },
-      { username: "admin.user", difficulty: "easy" }
-    ],
-    purchasedClues: ["clue-1", "clue-3"],
-    isAdmin: false
-  },
-  {
-    teamId: "ADMIN",
-    teamName: "Game Admin",
-    password: "ADMIN",
-    firebaseUID: "ADMIN",
-    coins: 0,
-    priority: 0,
-    score: 0,
-    crackedAccounts: [],
-    purchasedClues: [],
-    isAdmin: true
-  }
-];
-
-const accounts = [
-  { username: "john.smith", password: "smith2023", difficulty: "easy", points: 100 },
-  { username: "admin.user", password: "admin123", difficulty: "easy", points: 90 },
-  { username: "db.admin", password: "db@2024", difficulty: "medium", points: 150 },
-  { username: "ops.root", password: "R00t!Matrix#9", difficulty: "hard", points: 250 }
-];
-
-const clues = [
-  {
-    _id: "clue-1",
-    content: "Password contains 'smith'",
-    cost: 10,
-    isFake: false,
-    category: "Social Media Leak",
-    accountUsername: "john.smith"
-  },
-  {
-    _id: "clue-2",
-    content: "Has a year (2020-2024)",
-    cost: 12,
-    isFake: false,
-    category: "Database Leak",
-    accountUsername: "john.smith"
-  },
-  {
-    _id: "clue-3",
-    content: "Starts with 'admin'",
-    cost: 10,
-    isFake: false,
-    category: "Pattern Hint",
-    accountUsername: "admin.user"
-  },
-  {
-    _id: "clue-4",
-    content: "Contains a number",
-    cost: 12,
-    isFake: false,
-    category: "Security Logs",
-    accountUsername: "admin.user"
-  },
-  {
-    _id: "clue-5",
-    content: "Format: role@year",
-    cost: 13,
-    isFake: false,
-    category: "Database Leak",
-    accountUsername: "db.admin"
-  },
-  {
-    _id: "clue-6",
-    content: "Contains @ symbol",
-    cost: 14,
-    isFake: false,
-    category: "Pattern Hint",
-    accountUsername: "db.admin"
-  },
-  {
-    _id: "clue-7",
-    content: "Upper + lower + symbols",
-    cost: 15,
-    isFake: false,
-    category: "Security Logs",
-    accountUsername: "ops.root"
-  },
-  {
-    _id: "clue-8",
-    content: "Contains 'Matrix'",
-    cost: 14,
-    isFake: false,
-    category: "Database Leak",
-    accountUsername: "ops.root"
-  }
-];
-
-const submissions = [
-  {
-    teamId: "ALPHA01",
-    firebaseUID: "ALPHA01",
-    accountUsername: "john.smith",
-    passwordAttempt: "smith2023",
-    success: true,
-    message: "ACCESS GRANTED"
-  },
-  {
-    teamId: "BETA02",
-    firebaseUID: "BETA02",
-    accountUsername: "ops.root",
-    passwordAttempt: "root123",
-    success: false,
-    message: "Invalid password"
-  }
-];
-
-const findTeamByFirebase = (firebaseUID) =>
-  teams.find((team) => team.firebaseUID === firebaseUID);
-
-const findTeamById = (teamId) =>
-  teams.find((team) => team.teamId === teamId);
-
-const mapAccountForTeam = (account, accountClues, purchasedSet) => {
-  const clueRows = accountClues.map((clue) => {
-    const unlocked = purchasedSet.has(clue._id);
-    return {
-      clueId: clue._id,
-      category: clue.category,
-      text: unlocked ? clue.content : null,
-      cost: clue.cost,
-      unlocked,
-      fake: clue.isFake
-    };
-  });
-
-  return {
-    accountId: account.username,
-    username: account.username,
-    difficulty: account.difficulty,
-    clues: clueRows
-  };
-};
-
+// Helper
 const getCrackedSummary = (crackedAccounts) => {
   const summary = { easy: 0, medium: 0, hard: 0 };
   (crackedAccounts || []).forEach((item) => {
@@ -181,10 +21,8 @@ const getCrackedSummary = (crackedAccounts) => {
 
 router.get("/me", verifyFirebaseToken, async (req, res, next) => {
   try {
-    const team = findTeamByFirebase(req.firebaseUID);
-    if (!team) {
-      return res.status(404).json({ message: "Team not found" });
-    }
+    const team = await Team.findOne({ firebaseUID: req.firebaseUID });
+    if (!team) return res.status(404).json({ message: "Team not found" });
 
     return res.json({
       team: {
@@ -199,27 +37,37 @@ router.get("/me", verifyFirebaseToken, async (req, res, next) => {
       }
     });
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
-router.post("/login", async (req, res, next) => {
+router.post("/login", verifyFirebaseToken, async (req, res, next) => {
   const { teamId, password } = req.body || {};
-
-  if (!teamId || !password) {
-    return res.status(400).json({ message: "teamId and password are required" });
-  }
+  if (!teamId) return res.status(400).json({ message: "teamId is required" });
 
   try {
+    const isFirebaseDisabled = String(process.env.FIREBASE_AUTH_DISABLED || "").toLowerCase() === "true";
     const normalized = String(teamId).trim().toUpperCase();
-    const team = findTeamById(normalized);
+    const team = await Team.findOne({ teamId: normalized });
 
-    if (!team || team.password !== password) {
+    if (!team) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    if (!isFirebaseDisabled) {
+      // If Firebase verified the user, ensure the requested teamId actually belongs to that Firebase account
+      if (team.firebaseUID !== req.firebaseUID) {
+        return res.status(401).json({ message: "Authentication mismatch. Token does not match team." });
+      }
+    } else {
+      // Only strictly verify plaintext password if Firebase is disabled.
+      if (team.password !== password) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+    }
+
     return res.json({
-      token: `dev-token-${team.firebaseUID}`,
+      token: isFirebaseDisabled ? `dev-token-${team.firebaseUID}` : req.header("authorization")?.slice(7),
       team: {
         teamId: team.teamId,
         teamName: team.teamName,
@@ -232,61 +80,62 @@ router.post("/login", async (req, res, next) => {
       }
     });
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
 router.get("/accounts", verifyFirebaseToken, async (req, res, next) => {
   try {
-    const team = findTeamByFirebase(req.firebaseUID);
-    if (!team) {
-      return res.status(404).json({ message: "Team not found" });
-    }
+    const team = await Team.findOne({ firebaseUID: req.firebaseUID });
+    if (!team) return res.status(404).json({ message: "Team not found" });
 
-    const cluesByUsername = clues.reduce((acc, clue) => {
-      const key = clue.accountUsername;
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-      acc[key].push(clue);
-      return acc;
-    }, {});
+    const accounts = await Account.find();
+    const clues = await Clue.find();
+    
     const purchasedSet = new Set(team.purchasedClues || []);
 
-    return res.json({
-      accounts: accounts.map((account) =>
-        mapAccountForTeam(account, cluesByUsername[account.username] || [], purchasedSet)
-      )
+    const result = accounts.map(account => {
+      const accountClues = clues.filter(c => c.accountUsername === account.username);
+      
+      const clueRows = accountClues.map(clue => {
+        const unlocked = purchasedSet.has(clue._id.toString());
+        return {
+          clueId: clue._id,
+          category: clue.category,
+          text: unlocked ? clue.content : null,
+          cost: clue.cost,
+          unlocked,
+          fake: clue.isFake
+        };
+      });
+
+      return {
+        accountId: account._id,
+        username: account.username,
+        difficulty: account.difficulty,
+        crackedBy: account.crackedBy && account.crackedBy.length > 0 ? account.crackedBy[0] : null,
+        clues: clueRows
+      };
     });
+
+    return res.json({ accounts: result });
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
 router.post("/buy-clue", verifyFirebaseToken, async (req, res, next) => {
   const { username, clueId } = req.body || {};
-
-  if (!username || !clueId) {
-    return res.status(400).json({ message: "username and clueId are required" });
-  }
+  if (!username || !clueId) return res.status(400).json({ message: "username and clueId required" });
 
   try {
-    const team = findTeamByFirebase(req.firebaseUID);
-    if (!team) {
-      return res.status(404).json({ message: "Team not found" });
-    }
+    const clue = await Clue.findById(clueId);
+    if (!clue) return res.status(404).json({ message: "Clue not found" });
 
-    const account = accounts.find((item) => item.username === username);
-    if (!account) {
-      return res.status(404).json({ message: "Account not found" });
-    }
+    const team = await Team.findOne({ firebaseUID: req.firebaseUID });
+    if (!team) return res.status(404).json({ message: "Team not found" });
 
-    const clue = clues.find((item) => item._id === clueId && item.accountUsername === account.username);
-    if (!clue) {
-      return res.status(404).json({ message: "Clue not found" });
-    }
-
-    if (team.purchasedClues.includes(clueId)) {
+    if (team.purchasedClues.includes(clueId.toString())) {
       return res.status(409).json({ message: "Clue already purchased" });
     }
 
@@ -294,12 +143,22 @@ router.post("/buy-clue", verifyFirebaseToken, async (req, res, next) => {
       return res.status(400).json({ message: "Insufficient funds" });
     }
 
-    team.coins -= clue.cost;
-    team.purchasedClues.push(clueId);
+    const updatedTeam = await Team.findOneAndUpdate(
+      { _id: team._id, coins: { $gte: clue.cost } },
+      { 
+        $inc: { coins: -clue.cost },
+        $addToSet: { purchasedClues: clueId.toString() }
+      },
+      { new: true }
+    );
+
+    if (!updatedTeam) {
+      return res.status(400).json({ message: "Transaction failed, insufficient coins during concurrent access" });
+    }
 
     return res.json({
-      coins: team.coins,
-      purchasedClues: team.purchasedClues,
+      coins: updatedTeam.coins,
+      purchasedClues: updatedTeam.purchasedClues,
       unlockedClue: {
         clueId: clue._id,
         category: clue.category,
@@ -307,8 +166,120 @@ router.post("/buy-clue", verifyFirebaseToken, async (req, res, next) => {
         cost: clue.cost
       }
     });
+
   } catch (error) {
-    return next(error);
+    next(error);
+  }
+});
+
+router.post("/submit", verifyFirebaseToken, async (req, res, next) => {
+  const { accountId, password } = req.body;
+  try {
+    const team = await Team.findOne({ firebaseUID: req.firebaseUID });
+    if (!team) return res.status(404).json({ message: "Team not found" });
+
+    const account = await Account.findById(accountId);
+    if (!account) return res.status(404).json({ message: "Account not found" });
+
+    const isCorrect = account.password === password;
+
+    await Submission.create({
+      teamId: team.teamId,
+      firebaseUID: team.firebaseUID,
+      accountUsername: account.username,
+      passwordAttempt: password,
+      success: isCorrect,
+      message: isCorrect ? "ACCESS GRANTED" : "Invalid password"
+    });
+
+    if (isCorrect) {
+      const alreadyCracked = team.crackedAccounts.find(c => c.username === account.username);
+      if (!alreadyCracked) {
+        const points = account.points || 100;
+        
+        await Team.updateOne(
+          { _id: team._id },
+          {
+            $inc: { score: points, coins: 20 },
+            $push: { crackedAccounts: { username: account.username, difficulty: account.difficulty } }
+          }
+        );
+        
+        if (!account.crackedBy.includes(team.teamId)) {
+          await Account.updateOne(
+            { _id: account._id },
+            { $push: { crackedBy: team.teamId } }
+          );
+        }
+        
+        const updatedTeam = await Team.findById(team._id);
+        
+        return res.json({ 
+          status: "granted", 
+          message: "ACCESS GRANTED", 
+          rewardCoins: 20, 
+          isFirstCrack: account.crackedBy.length === 0,
+          team: {
+            teamId: updatedTeam.teamId,
+            teamName: updatedTeam.teamName,
+            coins: updatedTeam.coins,
+            purchasedClues: updatedTeam.purchasedClues,
+            priority: updatedTeam.priority,
+            score: updatedTeam.score,
+            cracked: getCrackedSummary(updatedTeam.crackedAccounts)
+          }
+        });
+      } else {
+        return res.status(400).json({ message: "Already cracked by your team!" });
+      }
+    } else {
+      return res.status(401).json({ message: "Invalid password" });
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/leaderboard", async (req, res, next) => {
+  try {
+    const teams = await Team.find({ isAdmin: false }).sort({ score: -1, updatedAt: 1 });
+    const formatted = teams.map((t, index) => ({
+      rank: index + 1,
+      teamId: t.teamId,
+      teamName: t.teamName,
+      score: t.score,
+      coins: t.coins,
+      cracked: getCrackedSummary(t.crackedAccounts)
+    }));
+    res.json(formatted);
+  } catch(err) {
+    next(err);
+  }
+});
+
+router.post("/chaos", verifyFirebaseToken, async (req, res, next) => {
+  try {
+    const actionCost = 10;
+    const team = await Team.findOne({ firebaseUID: req.firebaseUID });
+    if (!team) return res.status(404).json({ message: "Team not found" });
+
+    if (team.coins < actionCost) {
+      return res.status(400).json({ message: "Insufficient funds" });
+    }
+
+    const updatedTeam = await Team.findOneAndUpdate(
+      { _id: team._id, coins: { $gte: actionCost } },
+      { $inc: { coins: -actionCost } },
+      { new: true }
+    );
+
+    if (!updatedTeam) {
+       return res.status(400).json({ message: "Concurrency error, please try again" });
+    }
+
+    return res.json({ message: "Chaos action executed", coins: updatedTeam.coins });
+  } catch(err) {
+    next(err);
   }
 });
 
