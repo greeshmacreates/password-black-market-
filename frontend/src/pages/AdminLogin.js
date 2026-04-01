@@ -37,13 +37,12 @@ export default function AdminLogin() {
         <span className="kicker">Admin Access</span>
         <h2 className="auth-title">Admin Login</h2>
         <p className="auth-sub">Use this panel to create teams, configure clues, and control phases.</p>
-
         <label className="auth-label">Admin ID</label>
-        <input 
-          className="auth-input mono" 
-          placeholder="Enter Admin ID" 
-          value={teamId} 
-          onChange={(e) => setTeamId(e.target.value.toUpperCase())} 
+        <input
+          className="auth-input mono"
+          placeholder="Enter Admin ID"
+          value={teamId}
+          onChange={(e) => setTeamId(e.target.value.toUpperCase())}
         />
 
         <label className="auth-label">Password</label>
