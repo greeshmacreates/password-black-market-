@@ -4,6 +4,7 @@ const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
 const Team = require("../models/Team");
 const Account = require("../models/Account");
 const Clue = require("../models/Clue");
+const GameState = require("../models/GameState");
 
 const router = express.Router();
 
@@ -103,23 +104,52 @@ router.post("/accounts", async (req, res, next) => {
 
 router.post("/clues", async (req, res, next) => {
   try {
-    const clue = await Clue.create(req.body);
+    const payload = { ...req.body };
+    if (payload.text && !payload.content) {
+      payload.content = payload.text;
+    }
+    const clue = await Clue.create(payload);
     return res.json({ message: "Clue added", clue });
   } catch (err) {
     next(err);
   }
 });
 
-router.post("/game/start", async (req, res, next) => {
-  return res.json({ message: "Game started", phase: { phase: "recon" } });
-});
+router.post("/game/update", async (req, res, next) => {
+  try {
+    const gameState = await GameState.findOne();
+    if (!gameState) return res.status(404).json({ message: "No game state found" });
 
-router.post("/game/stop", async (req, res, next) => {
-  return res.json({ message: "Game stopped", phase: { phase: "ended" } });
-});
+    const now = Date.now();
+    let currentElapsed = 0;
+    if (gameState.phase === "recon") {
+        currentElapsed = Math.floor((now - gameState.lastUpdateAt.getTime()) / 1000);
+    }
 
-router.post("/game/phase", async (req, res, next) => {
-  return res.json({ message: "Phase changed", phase: { phase: req.body.phase } });
+    if (req.body.action === "start") {
+      gameState.phase = "recon";
+      gameState.timeRemainingSec = 7200; // 2 hours
+      gameState.lastUpdateAt = now;
+    } else if (req.body.action === "pause") {
+      if (gameState.phase === "recon") {
+          gameState.timeRemainingSec = Math.max(0, gameState.timeRemainingSec - currentElapsed);
+          gameState.phase = "paused";
+      } else if (gameState.phase === "paused") {
+          gameState.phase = "recon";
+          gameState.lastUpdateAt = now;
+      }
+    } else if (req.body.action === "addTime") {
+      gameState.timeRemainingSec += (req.body.minutes || 5) * 60;
+    } else if (req.body.action === "end") {
+       gameState.phase = "ended";
+       gameState.timeRemainingSec = 0;
+    }
+
+    await gameState.save();
+    return res.json({ message: "Game updated", phase: gameState });
+  } catch (err) {
+    next(err);
+  }
 });
 
 

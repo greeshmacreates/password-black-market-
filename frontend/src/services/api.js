@@ -26,52 +26,17 @@ API.interceptors.request.use((config) => {
     }
   }
 
+  let sessionId = localStorage.getItem("sessionId");
+  if (!sessionId) {
+    sessionId = Math.random().toString(36).substr(2, 9);
+    localStorage.setItem("sessionId", sessionId);
+  }
+  config.headers["X-Session-ID"] = sessionId;
+
   return config;
 });
 
-// ===== GAME PHASE LOGIC (Kept local for immediate UI timer) =====
-const RECON_DURATION_SEC = 1 * 60 * 60 + 45 * 60; // 1h 45m
-const CHAOS_DURATION_SEC = 30 * 60; // 30m
-const TOTAL_DURATION_SEC = RECON_DURATION_SEC + CHAOS_DURATION_SEC; // 2h 15m
-
-let mockGameStartAt = Date.now();
-let manualPhaseOverride = null;
-
-const getPhaseInfo = () => {
-  if (manualPhaseOverride === "ended") {
-    return { phase: "ended", reconLeftSec: 0, chaosLeftSec: 0, totalLeftSec: 0 };
-  }
-
-  if (manualPhaseOverride === "recon") {
-    return {
-      phase: "recon",
-      reconLeftSec: RECON_DURATION_SEC,
-      chaosLeftSec: CHAOS_DURATION_SEC,
-      totalLeftSec: TOTAL_DURATION_SEC
-    };
-  }
-
-  if (manualPhaseOverride === "chaos") {
-    return {
-      phase: "chaos",
-      reconLeftSec: 0,
-      chaosLeftSec: CHAOS_DURATION_SEC,
-      totalLeftSec: CHAOS_DURATION_SEC
-    };
-  }
-
-  const elapsedSec = Math.max(0, Math.floor((Date.now() - mockGameStartAt) / 1000));
-  const reconLeftSec = Math.max(RECON_DURATION_SEC - elapsedSec, 0);
-  const totalLeftSec = Math.max(TOTAL_DURATION_SEC - elapsedSec, 0);
-  const phase = reconLeftSec > 0 ? "recon" : (totalLeftSec > 0 ? "chaos" : "ended");
-
-  return {
-    phase,
-    reconLeftSec,
-    chaosLeftSec: phase === "recon" ? CHAOS_DURATION_SEC : totalLeftSec,
-    totalLeftSec
-  };
-};
+// Removed local mocked game phase timers. State is now strictly server-sided.
 
 // ===== TEAM ENDPOINTS =====
 
@@ -93,24 +58,28 @@ export const authLogin = async (data) => {
 };
 
 export const getDashboard = async () => {
-  const res = await API.get("/api/me");
-  const team = res.data.team;
-  const phaseInfo = getPhaseInfo();
-
-  return {
-    data: {
-      team,
-      phase: phaseInfo,
-      actions: {
-        canSeeChaosPanel: phaseInfo.phase === "chaos",
-        canInjectMisinformation: (team.priority || 0) === 1
-      }
-    }
-  };
+  const [teamRes, gameRes] = await Promise.all([
+    API.get("/api/me"),
+    API.get("/api/game/state")
+  ]);
+  
+  const team = teamRes.data.team;
+  const phase = gameRes.data;
+  
+  return { data: { team, phase } };
 };
 
 export const getGameState = async () => {
-  return Promise.resolve({ data: getPhaseInfo() });
+  const res = await API.get("/api/game/state");
+  return { data: res.data };
+};
+
+export const sendHeartbeat = async () => {
+  try {
+    await API.post("/api/heartbeat");
+  } catch(err) {
+    // Ignore heartbeat errors
+  }
 };
 
 export const getAccounts = async () => {
@@ -136,6 +105,11 @@ export const buyClue = async (data) => {
     username: data.username,
     clueId: data.clueId
   });
+  return { data: res.data };
+};
+
+export const injectFakeClue = async (data) => {
+  const res = await API.post("/api/inject-fake-clue", data);
   return { data: res.data };
 };
 
@@ -182,22 +156,8 @@ export const adminInjectFakeClue = async (data) => {
   return { data: res.data };
 };
 
-export const adminStartGame = async (data) => {
-  mockGameStartAt = Date.now();
-  manualPhaseOverride = null;
-  const res = await API.post("/api/admin/game/start", data);
-  return { data: res.data };
-};
-
-export const adminStopGame = async () => {
-  manualPhaseOverride = "ended";
-  const res = await API.post("/api/admin/game/stop");
-  return { data: res.data };
-};
-
-export const adminSetPhase = async (data) => {
-  manualPhaseOverride = data.phase;
-  const res = await API.post("/api/admin/game/phase", data);
+export const adminUpdateGame = async (data) => {
+  const res = await API.post("/api/admin/game/update", data);
   return { data: res.data };
 };
 

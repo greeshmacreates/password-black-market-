@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently \"npm start --prefix frontend\" \"npm run dev --prefix backend\"",
     "install-all": "npm install && npm install --prefix frontend && npm install --prefix backend",
-    "setup": "cd backend && node seed.js && node -e \"require('dotenv').config(); const mongoose=require('mongoose'); const Team=require('./models/Team'); mongoose.connect(process.env.MONGO_URI).then(async()=>{ await Team.create({teamId:'ADMIN@ISFCR', teamName:'Game Admin', password:'thekaliusers', firebaseUID:'dev-uid-admin', isAdmin:true, coins:0, priority:1}); console.log('Admin account created!'); process.exit(); }).catch(console.error);\" && node setupFirebase.js"
+    "setup": "cd backend && node seed.js && node -e \"require('dotenv').config(); const mongoose=require('mongoose'); const Team=require('./models/Team'); mongoose.connect(process.env.MONGO_URI).then(async()=>{ await Team.create({teamId:'ADMINISFCR1', teamName:'Game Admin', password:'thekaliusers', firebaseUID:'dev-uid-admin', isAdmin:true, coins:0, priority:1}); console.log('Admin account created!'); process.exit(); }).catch(console.error);\" && node setupFirebase.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

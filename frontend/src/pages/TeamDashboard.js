@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import Sidebar from "../components/Sidebar";
-import { getDashboard, runChaosAction } from "../services/api";
+import { getDashboard } from "../services/api";
 
 const formatTimer = (seconds) => {
   const safe = Math.max(Number(seconds || 0), 0);
@@ -15,7 +15,7 @@ const formatTimer = (seconds) => {
 export default function TeamDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
-  const [livePhase, setLivePhase] = useState({ phase: "waiting", reconLeftSec: 0, chaosLeftSec: 0 });
+  const [livePhase, setLivePhase] = useState({ phase: "waiting", timeRemainingSec: 0 });
 
   const refresh = useCallback(async () => {
     const dashboardRes = await getDashboard();
@@ -34,8 +34,7 @@ export default function TeamDashboard() {
 
   const phaseInfo = useMemo(() => data?.phase || {
     phase: "waiting",
-    reconLeftSec: 0,
-    chaosLeftSec: 0
+    timeRemainingSec: 0
   }, [data]);
 
   useEffect(() => {
@@ -45,28 +44,13 @@ export default function TeamDashboard() {
   useEffect(() => {
     const tick = setInterval(() => {
       setLivePhase((prev) => {
-        if (prev.phase === "recon") {
-          const reconLeft = Math.max((prev.reconLeftSec || 0) - 1, 0);
-
-          // Chaos should activate only after recon is fully completed.
-          // Keep chaos timer frozen during recon.
+        if (prev.phase === "recon" || prev.phase === "chaos") {
+          const timeLeft = Math.max((prev.timeRemainingSec || 0) - 1, 0);
           return {
-            phase: reconLeft > 0 ? "recon" : "chaos",
-            reconLeftSec: reconLeft,
-            chaosLeftSec: prev.chaosLeftSec || 0
+            phase: timeLeft > 0 ? prev.phase : "ended",
+            timeRemainingSec: timeLeft
           };
         }
-
-        if (prev.phase === "chaos") {
-          const chaosLeft = Math.max((prev.chaosLeftSec || 0) - 1, 0);
-
-          return {
-            phase: chaosLeft > 0 ? "chaos" : "ended",
-            reconLeftSec: 0,
-            chaosLeftSec: chaosLeft
-          };
-        }
-
         return prev;
       });
     }, 1000);
@@ -75,19 +59,6 @@ export default function TeamDashboard() {
   }, []);
 
   if (!data?.team) return null;
-
-  const onChaosAction = async (action) => {
-    try {
-      const res = await runChaosAction({ action });
-      toast.success(res.data.message);
-      await refresh();
-    } catch (error) {
-      const message = error?.response?.data?.message || "Action failed";
-      if (!/insufficient funds/i.test(message)) {
-        toast.error(message);
-      }
-    }
-  };
 
   return (
     <div className="app-shell">
@@ -103,7 +74,7 @@ export default function TeamDashboard() {
 
           <div className="hero-balance">
             <div className="label">Coins Remaining</div>
-            <div className="value" style={{ fontSize: data.team.coins === 0 ? 20 : 28 }}>
+            <div className="value coin-shimmer" style={{ fontSize: data.team.coins === 0 ? 20 : 28 }}>
               {data.team.coins === 0 ? "Insufficient funds" : data.team.coins}
             </div>
           </div>
@@ -121,23 +92,15 @@ export default function TeamDashboard() {
         <section className="panel animate-fade-up" style={{ marginTop: "14px", animationDelay: "0.15s" }}>
           <h3 style={{ marginTop: 0 }}>Game Timer</h3>
           <div className="stats-grid" style={{ marginTop: 8 }}>
-            <div className="stat-card"><div className="stat-label">Phase</div><div className="stat-value" style={{ textTransform: "capitalize" }}>{livePhase.phase}</div></div>
-            <div className="stat-card"><div className="stat-label">Recon Time Left</div><div className="stat-value mono">{formatTimer(livePhase.reconLeftSec)}</div></div>
-            <div className="stat-card"><div className="stat-label">Chaos Time Left</div><div className="stat-value mono">{formatTimer(livePhase.chaosLeftSec)}</div></div>
+            <div className="stat-card"><div className="stat-label">Phase</div><div className="stat-value" style={{ fontSize: 18, color: livePhase.phase === "paused" ? "#fca5a5" : "#8ef8b9" }}>
+              {livePhase.phase === "recon" ? "Game Started" : 
+               livePhase.phase === "paused" ? "Admin Paused (Waiting to Resume)" : 
+               livePhase.phase === "ended" ? "Game Ended" : 
+               "Waiting for Admin"}
+            </div></div>
+            <div className="stat-card"><div className="stat-label">Time Remaining</div><div className="stat-value mono">{formatTimer(livePhase.timeRemainingSec)}</div></div>
           </div>
         </section>
-
-        {livePhase.phase === "chaos" ? (
-          <section className="panel animate-fade-up" style={{ marginTop: "14px", animationDelay: "0.22s" }}>
-            <h3 style={{ marginTop: 0 }}>Chaos Phase Panel</h3>
-            <div className="market-grid">
-              <button className="btn btn-ghost" onClick={() => onChaosAction("deep_scan")}>Deep Scan (15)</button>
-              <button className="btn btn-ghost" onClick={() => onChaosAction("pattern_hint")}>Pattern Hint (12)</button>
-              <button className="btn btn-ghost" onClick={() => onChaosAction("eliminate_noise")}>Eliminate Noise (10)</button>
-              <button className="btn btn-ghost" onClick={() => onChaosAction("priority_access")}>Priority Access (20)</button>
-            </div>
-          </section>
-        ) : null}
       </main>
     </div>
   );

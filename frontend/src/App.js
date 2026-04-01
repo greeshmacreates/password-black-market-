@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import "./App.css";
+import { useEffect } from "react";
+import { sendHeartbeat } from "./services/api";
 
 import Login from "./pages/Login";
 import AdminLogin from "./pages/AdminLogin";
@@ -14,6 +16,15 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 function AnimatedRoutes() {
   const location = useLocation();
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (localStorage.getItem("token")) {
+        sendHeartbeat();
+      }
+    }, 15000); // Heartbeat every 15s
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div key={location.pathname} className="route-transition">

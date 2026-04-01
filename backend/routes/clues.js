@@ -4,6 +4,29 @@ const Team = require("../models/Team");
 const Account = require("../models/Account");
 const Clue = require("../models/Clue");
 const Submission = require("../models/Submission");
+const GameState = require("../models/GameState");
+
+const rateLimits = new Map(); // teamId -> { attempts: count, lockUntil: timestamp }
+
+const applyInactivityPenalty = async (team) => {
+  if (team.isAdmin) return team;
+  const now = Date.now();
+  const THIRTY_MINS = 30 * 60 * 1000;
+  
+  if (team.lastActiveAt && (now - team.lastActiveAt.getTime()) > THIRTY_MINS) {
+     const deductAmt = Math.min(30, team.coins);
+     const updated = await Team.findOneAndUpdate(
+       { _id: team._id, lastActiveAt: team.lastActiveAt }, 
+       { 
+         $inc: { coins: -deductAmt },
+         $set: { lastActiveAt: new Date(now) }
+       },
+       { new: true }
+     );
+     return updated || team;
+  }
+  return team;
+};
 
 const router = express.Router();
 
@@ -21,10 +44,12 @@ const getCrackedSummary = (crackedAccounts) => {
 
 router.get("/me", verifyFirebaseToken, async (req, res, next) => {
   try {
-    const team = await Team.findOne({ firebaseUID: req.firebaseUID });
+    let team = await Team.findOne({ firebaseUID: req.firebaseUID });
     if (!team) return res.status(404).json({ message: "Team not found" });
 
-    return res.json({
+    team = await applyInactivityPenalty(team);
+
+    res.json({
       team: {
         teamId: team.teamId,
         teamName: team.teamName,
@@ -38,6 +63,57 @@ router.get("/me", verifyFirebaseToken, async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+});
+
+router.post("/heartbeat", verifyFirebaseToken, async (req, res, next) => {
+  try {
+    const sessionId = req.headers["x-session-id"];
+    if (!sessionId) return res.json({ status: "ignored" });
+    
+    const team = await Team.findOne({ firebaseUID: req.firebaseUID });
+    if (!team) return res.status(404).json({ message: "Team not found" });
+
+    // Filter out stale tokens (> 60 seconds)
+    const now = Date.now();
+    let tokens = (team.activeTokens || []).filter(t => (now - t.lastHeartbeat) < 60000);
+    
+    // Add or update current session
+    const existingIndex = tokens.findIndex(t => t.token === sessionId);
+    if (existingIndex >= 0) {
+      tokens[existingIndex].lastHeartbeat = now;
+    } else {
+      tokens.push({ token: sessionId, lastHeartbeat: now });
+    }
+
+    await applyInactivityPenalty(team);
+
+    await Team.updateOne({ _id: team._id }, { activeTokens: tokens });
+    return res.json({ status: "ok" });
+  } catch(err) {
+    next(err);
+  }
+});
+
+router.get("/game/state", async (req, res, next) => {
+  try {
+    const gameState = await GameState.findOne();
+    if (!gameState) return res.json({ phase: "waiting" });
+    
+    // Calculate lazy time
+    const now = Date.now();
+    let timeLeft = gameState.timeRemainingSec;
+    if (gameState.phase === "recon") {
+       const elapsed = Math.floor((now - gameState.lastUpdateAt.getTime()) / 1000);
+       timeLeft = Math.max(0, timeLeft - elapsed);
+    }
+    
+    return res.json({
+      phase: gameState.phase,
+      timeRemainingSec: timeLeft
+    });
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -55,14 +131,28 @@ router.post("/login", verifyFirebaseToken, async (req, res, next) => {
     }
 
     if (!isFirebaseDisabled) {
-      // If Firebase verified the user, ensure the requested teamId actually belongs to that Firebase account
       if (team.firebaseUID !== req.firebaseUID) {
         return res.status(401).json({ message: "Authentication mismatch. Token does not match team." });
       }
     } else {
-      // Only strictly verify plaintext password if Firebase is disabled.
       if (team.password !== password) {
         return res.status(401).json({ message: "Invalid credentials" });
+      }
+    }
+
+    // Check concurrent logins
+    const sessionId = req.headers["x-session-id"];
+    if (sessionId) {
+      const now = Date.now();
+      let tokens = (team.activeTokens || []).filter(t => (now - t.lastHeartbeat) < 60000);
+      
+      const isAlreadyActive = tokens.find(t => t.token === sessionId);
+      if (!isAlreadyActive) {
+        if (tokens.length >= 2) {
+          return res.status(403).json({ message: "Maximum logins (2) reached for this team." });
+        }
+        tokens.push({ token: sessionId, lastHeartbeat: now });
+        await Team.updateOne({ _id: team._id }, { activeTokens: tokens });
       }
     }
 
@@ -147,7 +237,8 @@ router.post("/buy-clue", verifyFirebaseToken, async (req, res, next) => {
       { _id: team._id, coins: { $gte: clue.cost } },
       { 
         $inc: { coins: -clue.cost },
-        $addToSet: { purchasedClues: clueId.toString() }
+        $addToSet: { purchasedClues: clueId.toString() },
+        $set: { lastActiveAt: new Date() }
       },
       { new: true }
     );
@@ -174,6 +265,16 @@ router.post("/buy-clue", verifyFirebaseToken, async (req, res, next) => {
 
 router.post("/submit", verifyFirebaseToken, async (req, res, next) => {
   const { accountId, password } = req.body;
+
+  const now = Date.now();
+  const teamContext = req.firebaseUID;
+  let rData = rateLimits.get(teamContext) || { attempts: 0, lockUntil: 0 };
+  
+  if (now < rData.lockUntil) {
+    const waitSec = Math.ceil((rData.lockUntil - now) / 1000);
+    return res.status(429).json({ message: `Team cooldown active.`, lockUntil: rData.lockUntil });
+  }
+
   try {
     const team = await Team.findOne({ firebaseUID: req.firebaseUID });
     if (!team) return res.status(404).json({ message: "Team not found" });
@@ -193,6 +294,8 @@ router.post("/submit", verifyFirebaseToken, async (req, res, next) => {
     });
 
     if (isCorrect) {
+      rateLimits.delete(teamContext);
+
       const alreadyCracked = team.crackedAccounts.find(c => c.username === account.username);
       if (!alreadyCracked) {
         const points = account.points || 100;
@@ -201,7 +304,8 @@ router.post("/submit", verifyFirebaseToken, async (req, res, next) => {
           { _id: team._id },
           {
             $inc: { score: points, coins: 20 },
-            $push: { crackedAccounts: { username: account.username, difficulty: account.difficulty } }
+            $push: { crackedAccounts: { username: account.username, difficulty: account.difficulty } },
+            $set: { lastActiveAt: new Date() }
           }
         );
         
@@ -233,6 +337,13 @@ router.post("/submit", verifyFirebaseToken, async (req, res, next) => {
         return res.status(400).json({ message: "Already cracked by your team!" });
       }
     } else {
+      rData.attempts += 1;
+      if (rData.attempts >= 3) {
+        rData.lockUntil = now + 10000;
+        rData.attempts = 0;
+      }
+      rateLimits.set(teamContext, rData);
+      await Team.updateOne({ _id: team._id }, { $set: { lastActiveAt: new Date() } });
       return res.status(401).json({ message: "Invalid password" });
     }
   } catch (err) {
@@ -257,28 +368,36 @@ router.get("/leaderboard", async (req, res, next) => {
   }
 });
 
-router.post("/chaos", verifyFirebaseToken, async (req, res, next) => {
+
+
+router.post("/inject-fake-clue", verifyFirebaseToken, async (req, res, next) => {
+  const { accountUsername, category, text } = req.body;
   try {
-    const actionCost = 10;
     const team = await Team.findOne({ firebaseUID: req.firebaseUID });
     if (!team) return res.status(404).json({ message: "Team not found" });
 
-    if (team.coins < actionCost) {
-      return res.status(400).json({ message: "Insufficient funds" });
+    if (team.coins < 5) {
+      return res.status(400).json({ message: "Insufficient funds (5 coins required)" });
     }
 
     const updatedTeam = await Team.findOneAndUpdate(
-      { _id: team._id, coins: { $gte: actionCost } },
-      { $inc: { coins: -actionCost } },
+      { _id: team._id, coins: { $gte: 5 } },
+      { $inc: { coins: -5 }, $set: { lastActiveAt: new Date() } },
       { new: true }
     );
 
-    if (!updatedTeam) {
-       return res.status(400).json({ message: "Concurrency error, please try again" });
-    }
+    if (!updatedTeam) return res.status(400).json({ message: "Concurrency error" });
 
-    return res.json({ message: "Chaos action executed", coins: updatedTeam.coins });
-  } catch(err) {
+    await Clue.create({
+      accountUsername,
+      category,
+      content: text,
+      cost: 10,
+      isFake: true
+    });
+
+    return res.json({ message: "Fake clue injected", coins: updatedTeam.coins });
+  } catch (err) {
     next(err);
   }
 });

@@ -20,7 +20,12 @@ app.get("/", (req, res) => {
 app.use("/api", cluesRoutes);
 app.use("/api/admin", adminRoutes);
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
+  .then(async () => {
+    console.log("MongoDB Connected");
+    const GameState = require("./models/GameState");
+    const count = await GameState.countDocuments();
+    if (count === 0) await GameState.create({});
+  })
   .catch(err => console.log(err));
 
 
