@@ -134,7 +134,7 @@ export default function Accounts() {
                 Difficulty: <strong style={{ textTransform: "capitalize" }}>{account.difficulty}</strong>
               </p>
               <p className="page-subtitle" style={{ marginBottom: 0 }}>
-                Status: {account.crackedBy ? `Cracked by ${account.crackedBy}` : "Not cracked"}
+                Status: {account.crackedBy && account.crackedBy.length > 0 ? `Cracked by ${account.crackedBy.join(", ")}` : "Not Cracked"}
               </p>
 
               {resultByAccount[account.accountId] ? (

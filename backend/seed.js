@@ -5,69 +5,48 @@ const Team = require("./models/Team");
 const Account = require("./models/Account");
 const Clue = require("./models/Clue");
 const Submission = require("./models/Submission");
+const GameState = require("./models/GameState");
 
 async function seed() {
-  await mongoose.connect(process.env.MONGO_URI);
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("Connected to MongoDB...");
 
-  console.log("Connected");
+    // 1. Wipe all collections clean
+    await Team.deleteMany();
+    await Account.deleteMany();
+    await Clue.deleteMany();
+    await Submission.deleteMany();
+    await GameState.deleteMany();
+    console.log("Database cleared ✅");
 
-  // Clear old data (optional)
-  await Team.deleteMany();
-  await Account.deleteMany();
-  await Clue.deleteMany();
-  await Submission.deleteMany();
+    // 2. Create the MASTER ADMIN Account
+    await Team.create({
+      teamId: "ADMINISFCR1",
+      teamName: "Game Admin",
+      password: "thekaliusers",
+      firebaseUID: "dev-uid-admin",
+      isAdmin: true,
+      coins: 0,
+      priority: 1
+    });
+    console.log("Admin account (ADMINISFCR1) created ✅");
 
-  // 1. Create Teams
-  const team = await Team.create({
-    teamId: "TEAM01",
-    teamName: "Alpha Squad",
-    firebaseUID: "dummyUID123",
-    password: "pass123",
-    coins: 120,
-  });
+    // 3. Initialize Game State
+    await GameState.create({
+      phase: "started", // Set to started by default or 'paused'
+      timerStart: null,
+      duration: 7200,
+      isActive: false
+    });
+    console.log("Game state initialized ✅");
 
-  // 2. Create Accounts
-  const account = await Account.create({
-    username: "john_doe",
-    password: "John@123",
-    difficulty: "easy",
-    points: 10,
-  });
-
-  // 3. Create Clues
-  await Clue.create([
-    {
-      content: "Favorite cricketer is Dhoni",
-      cost: 10,
-      isFake: false,
-      category: "social",
-      accountUsername: account.username,
-    },
-    {
-      content: "Born in 1995",
-      cost: 10,
-      isFake: false,
-      category: "database",
-      accountUsername: account.username,
-    },
-    {
-      content: "Password format is Name@123",
-      cost: 15,
-      isFake: false,
-      category: "pattern",
-      accountUsername: account.username,
-    },
-    {
-      content: "Loves Messi", // fake clue
-      cost: 10,
-      isFake: true,
-      category: "social",
-      accountUsername: account.username,
-    },
-  ]);
-
-  console.log("Data Seeded ✅");
-  process.exit();
+    console.log("\nSetup completed successfully! Only the Admin is in the database.");
+    process.exit(0);
+  } catch (err) {
+    console.error("Seed error:", err);
+    process.exit(1);
+  }
 }
 
 seed();

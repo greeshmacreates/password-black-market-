@@ -1,11 +1,11 @@
 {
-  "short_name": "ISFCR MARKET",
-  "name": "ISFCR MARKET",
+  "short_name": "ISFCR",
+  "name": "ISFCR",
   "icons": [
     {
-      "src": "isfcr-logo.png",
+      "src": "isfcr-logo.svg",
       "sizes": "192x192 64x64 32x32 24x24 16x16",
-      "type": "image/png"
+      "type": "image/svg+xml"
     }
   ],
   "start_url": ".",

@@ -208,8 +208,8 @@ router.get("/accounts", verifyFirebaseToken, async (req, res, next) => {
         let finalContent = clue.content;
         let isFakeOverwrite = false;
 
-        // Advantage Mechanic: If a fake clue targets this team, subtly overwrite Clue #3 (index 2).
-        if (index === 2 && fakeClues.length > 0) {
+        // Advantage Mechanic: If a fake clue targets this team, subtly overwrite Clue #3 (index 2) and Clue #4 (index 3).
+        if ((index === 2 || index === 3) && fakeClues.length > 0) {
             finalContent = fakeClues[0].content;
             isFakeOverwrite = true;
         }
@@ -279,7 +279,7 @@ router.post("/buy-clue", verifyFirebaseToken, async (req, res, next) => {
 
     let finalContent = clue.content;
     let isFakeOverwrite = false;
-    if (clueIndex === 2) {
+    if (clueIndex === 2 || clueIndex === 3) {
       const fakeClues = await Clue.find({ accountUsername: username, isFake: true, targetTeams: team.teamId });
       if (fakeClues.length > 0) {
         finalContent = fakeClues[0].content;
