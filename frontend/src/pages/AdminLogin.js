@@ -71,7 +71,7 @@ export default function AdminLogin() {
           </button>
         </div>
 
-        <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: "100%" }}>
+        <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: "100%", marginTop: "16px" }}>
           {loading ? "Signing in..." : "Open Admin Panel"}
         </button>
 
