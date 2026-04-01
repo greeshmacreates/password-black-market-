@@ -1,8 +1,9 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import "./App.css";
-import { useEffect } from "react";
-import { sendHeartbeat } from "./services/api";
+import { useEffect, useState } from "react";
+import { sendHeartbeat, getGameState } from "./services/api";
+import LeaderboardModal from "./components/LeaderboardModal";
 
 import Login from "./pages/Login";
 import AdminLogin from "./pages/AdminLogin";
@@ -82,8 +83,26 @@ function AnimatedRoutes() {
 }
 
 function App() {
+  const [globalPhase, setGlobalPhase] = useState("waiting");
+
+  useEffect(() => {
+    const fetchPhase = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (token) {
+          const res = await getGameState();
+          setGlobalPhase(res.data.phase);
+        }
+      } catch (e) {}
+    };
+    fetchPhase();
+    const interval = setInterval(fetchPhase, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <BrowserRouter>
+      {globalPhase === "ended" && !window.location.pathname.includes("/admin") && <LeaderboardModal onClose={() => setGlobalPhase("acknowledged_end")} />}
       <Toaster 
         position="top-center" 
         toastOptions={{

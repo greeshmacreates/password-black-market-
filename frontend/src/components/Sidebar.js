@@ -46,7 +46,10 @@ export default function Sidebar() {
         {open ? "Collapse" : "Expand"}
       </button>
 
-      <h3 className="brand">{open ? "ISFCR Cipher Arena" : "ICA"}</h3>
+      <h3 className="brand" style={{ display: 'flex', alignItems: 'center', justifyContent: open ? 'flex-start' : 'center', gap: '8px', margin: open ? '4px 6px 20px' : '4px 0 20px' }}>
+        <img src="/isfcr-logo.png" alt="logo" style={{ width: '28px', height: '28px', objectFit: 'contain', flexShrink: 0 }} />
+        {open && <span style={{ paddingTop: '2px' }}>ISFCR MARKET</span>}
+      </h3>
 
       <nav className="nav-list">
         {navItems.map((item) => (

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { getAccounts, verifyAccountPassword, injectFakeClue } from "../services/api";
+import { getAccounts, verifyAccountPassword, injectFakeClue, getLeaderboard } from "../services/api";
 import { toast } from "react-hot-toast";
 
 export default function Accounts() {
@@ -16,12 +16,16 @@ export default function Accounts() {
 
   const [showInjectModal, setShowInjectModal] = useState(false);
   const [injectionTimer, setInjectionTimer] = useState(0);
-  const [fakeCategory, setFakeCategory] = useState("Social Media Leak");
   const [fakeText, setFakeText] = useState("");
-  const [targetUsername, setTargetUsername] = useState("");
+  const [opponents, setOpponents] = useState([]);
+  const [selectedTargets, setSelectedTargets] = useState([]);
 
   useEffect(() => {
     getAccounts().then((res) => setAccounts(res.data || [])).catch(() => setAccounts([]));
+    getLeaderboard().then(res => {
+      const myTeam = JSON.parse(localStorage.getItem("team"))?.teamId;
+      setOpponents((res.data || []).filter(t => t.teamId !== myTeam));
+    }).catch(() => {});
   }, []);
 
   const selectedId = useMemo(() => {
@@ -212,35 +216,50 @@ export default function Accounts() {
           <div className="terminal-overlay">
             <div className="terminal-modal" style={{ maxWidth: 450 }}>
               <div className="terminal-head">
-                 <div className="terminal-title">SPECIAL ADVANTAGE (Cost: 5 Coins)</div>
+                 <div className="terminal-title">SPECIAL ADVANTAGE (Cost: {selectedTargets.length * 5} Coins)</div>
                  <div style={{ color: "orange", marginRight: 10 }}>Time: {injectionTimer}s</div>
               </div>
               <div className="terminal-body">
-                <p>&gt; First crack detected. Inject false intelligence?</p>
+                <p>&gt; First crack detected on <span className="mono">{activeAccount?.username}</span>. Inject false intelligence?</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-                  <select className="auth-input" value={targetUsername} onChange={e => setTargetUsername(e.target.value)} style={{ width: "100%" }}>
-                    <option value="">Select Victim Account</option>
-                    {accounts.map(a => <option key={a.username} value={a.username}>{a.username}</option>)}
-                  </select>
-                  <select className="auth-input" value={fakeCategory} onChange={e => setFakeCategory(e.target.value)} style={{ width: "100%" }}>
-                    <option>Social Media Leak</option>
-                    <option>Database Leak</option>
-                    <option>Pattern Hint</option>
-                    <option>Security Logs</option>
-                  </select>
-                  <input className="auth-input" placeholder="Fake text" value={fakeText} onChange={e => setFakeText(e.target.value)} style={{ width: "100%" }} />
+                  
+                  <div style={{ maxHeight: "150px", overflowY: "auto", border: "1px solid rgba(255,255,255,0.1)", padding: "8px", borderRadius: "4px" }}>
+                    <p className="auth-sub" style={{ margin: "0 0 8px 0" }}>Select Target Teams:</p>
+                    {opponents.length === 0 ? <p className="auth-sub" style={{ margin: 0 }}>No other teams available.</p> : opponents.map(opp => {
+                      const alreadyCracked = activeAccount?.crackedBy?.includes(opp.teamId);
+                      return (
+                        <label key={opp.teamId} style={{ display: "flex", alignItems: "center", gap: 8, opacity: alreadyCracked ? 0.5 : 1, marginBottom: 4 }}>
+                          <input 
+                            type="checkbox" 
+                            disabled={alreadyCracked}
+                            checked={selectedTargets.includes(opp.teamId)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedTargets([...selectedTargets, opp.teamId]);
+                              else setSelectedTargets(selectedTargets.filter(id => id !== opp.teamId));
+                            }}
+                          />
+                          <span className="mono">{opp.teamName}</span>
+                          {alreadyCracked && <span className="auth-sub" style={{ margin: 0, fontSize: 10, color: "#fca5a5" }}>(Already Cracked)</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <input className="auth-input" placeholder="Fake text description" value={fakeText} onChange={e => setFakeText(e.target.value)} style={{ width: "100%" }} />
+                  
                   <button className="btn btn-primary" onClick={async () => {
-                    if (!targetUsername || !fakeText) return toast.error("Fill all fields");
+                    if (selectedTargets.length === 0) return toast.error("Select at least one target team");
+                    if (!fakeText) return toast.error("Enter a fake clue text");
                     try {
-                      await injectFakeClue({ accountUsername: targetUsername, category: fakeCategory, text: fakeText });
-                      toast.success("Fake clue injected");
+                      await injectFakeClue({ accountUsername: activeAccount.username, text: fakeText, targetTeams: selectedTargets });
+                      toast.success("Fake clue injected targeting " + selectedTargets.length + " teams");
                       setShowInjectModal(false);
                       clearInterval(window.injectionInterval);
                     } catch(err) {
                       toast.error(err?.response?.data?.message || "Failed");
                     }
                   }}>
-                    Inject Fake Clue (5 Coins)
+                    Inject Fake Clue ({selectedTargets.length * 5} Coins)
                   </button>
                   <button className="btn btn-ghost" onClick={() => {
                      setShowInjectModal(false);

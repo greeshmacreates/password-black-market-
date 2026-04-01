@@ -105,11 +105,17 @@ export const buyClue = async (data) => {
     username: data.username,
     clueId: data.clueId
   });
+  if (res.data.team) {
+    localStorage.setItem("team", JSON.stringify(res.data.team));
+  }
   return { data: res.data };
 };
 
 export const injectFakeClue = async (data) => {
   const res = await API.post("/api/inject-fake-clue", data);
+  if (res.data.team) {
+    localStorage.setItem("team", JSON.stringify(res.data.team));
+  }
   return { data: res.data };
 };
 

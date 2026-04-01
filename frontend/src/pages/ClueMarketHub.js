@@ -57,7 +57,7 @@ export default function ClueMarketHub() {
           <div>
             <span className="kicker">Clue Market</span>
             <h1 className="page-title">Account Intelligence</h1>
-            <p className="page-subtitle">Buy clues, inspect categories, and crack accounts strategically.</p>
+            <p className="page-subtitle">Buy clues and crack accounts strategically.</p>
           </div>
 
           <div className="hero-balance">
@@ -79,27 +79,32 @@ export default function ClueMarketHub() {
               <p className="page-subtitle" style={{ marginTop: 0 }}>Difficulty: <strong style={{ textTransform: "capitalize" }}>{account.difficulty}</strong></p>
 
               <div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
-                {account.clues.map((clue) => (
-                  <div key={clue.clueId} className="stat-card">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                      <span className="badge easy" style={{ whiteSpace: "nowrap" }}>{clue.category}</span>
-                      {!clue.unlocked ? (
-                        <button
-                          className="btn btn-primary"
-                          onClick={() => handleBuy(account, clue.clueId)}
-                          disabled={buyingClues[`${account.accountId}:${clue.clueId}`]}
-                        >
-                          {buyingClues[`${account.accountId}:${clue.clueId}`] ? "Processing..." : `Buy (${clue.cost})`}
-                        </button>
-                      ) : (
-                        <span className="auth-sub" style={{ margin: 0 }}>{clue.fake ? "Injected" : "Unlocked"}</span>
-                      )}
+                {account.clues.slice(0, 4).map((clue, index) => {
+                  const isFree = clue.cost === 0;
+                  return (
+                    <div key={clue.clueId} className="stat-card">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                        <span className="badge" style={{ whiteSpace: "nowrap", background: isFree ? "rgba(74, 222, 128, 0.2)" : "rgba(120, 160, 255, 0.2)", color: isFree ? "#4ade80" : "#78a0ff" }}>
+                          Clue {index + 1} {isFree ? "(Free)" : ""}
+                        </span>
+                        {!clue.unlocked ? (
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => handleBuy(account, clue.clueId)}
+                            disabled={buyingClues[`${account.accountId}:${clue.clueId}`]}
+                          >
+                            {buyingClues[`${account.accountId}:${clue.clueId}`] ? "Processing..." : isFree ? "View Free" : `Buy (${clue.cost})`}
+                          </button>
+                        ) : (
+                          <span className="auth-sub" style={{ margin: 0 }}>{clue.fake ? "Injected" : "Unlocked"}</span>
+                        )}
+                      </div>
+                      <p className="page-subtitle" style={{ margin: "8px 0 0" }}>
+                        {clue.unlocked ? clue.text : "Hidden until purchased"}
+                      </p>
                     </div>
-                    <p className="page-subtitle" style={{ margin: "8px 0 0" }}>
-                      {clue.unlocked ? clue.text : "Hidden until purchased"}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
 

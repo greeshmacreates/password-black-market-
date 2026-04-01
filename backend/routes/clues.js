@@ -106,6 +106,12 @@ router.get("/game/state", async (req, res, next) => {
     if (gameState.phase === "recon") {
        const elapsed = Math.floor((now - gameState.lastUpdateAt.getTime()) / 1000);
        timeLeft = Math.max(0, timeLeft - elapsed);
+
+       if (timeLeft === 0) {
+           gameState.phase = "ended";
+           gameState.timeRemainingSec = 0;
+           await gameState.save();
+       }
     }
     
     return res.json({
@@ -185,17 +191,37 @@ router.get("/accounts", verifyFirebaseToken, async (req, res, next) => {
     const purchasedSet = new Set(team.purchasedClues || []);
 
     const result = accounts.map(account => {
-      const accountClues = clues.filter(c => c.accountUsername === account.username);
-      
-      const clueRows = accountClues.map(clue => {
+      // Get all real clues and sort them strictly by insertion order (_id)
+      let realClues = clues.filter(c => c.accountUsername === account.username && !c.isFake);
+      realClues.sort((a, b) => a._id.toString().localeCompare(b._id.toString()));
+
+      // Enforce rule: first two are Cost: 0, next two are Cost: 10
+      realClues = realClues.map((clue, index) => {
+          clue.cost = (index < 2) ? 0 : 10;
+          return clue;
+      });
+
+      // Find any fake clues targeting exactly this team for exactly this account
+      const fakeClues = clues.filter(c => c.accountUsername === account.username && c.isFake && c.targetTeams && c.targetTeams.includes(team.teamId));
+
+      const clueRows = realClues.map((clue, index) => {
+        let finalContent = clue.content;
+        let isFakeOverwrite = false;
+
+        // Advantage Mechanic: If a fake clue targets this team, subtly overwrite Clue #3 (index 2).
+        if (index === 2 && fakeClues.length > 0) {
+            finalContent = fakeClues[0].content;
+            isFakeOverwrite = true;
+        }
+
         const unlocked = purchasedSet.has(clue._id.toString());
         return {
-          clueId: clue._id,
+          clueId: clue._id, // Target team buys the real Clue ID but receives fake text!
           category: clue.category,
-          text: unlocked ? clue.content : null,
+          text: unlocked ? finalContent : null, // Send the overwritten deceptive content
           cost: clue.cost,
           unlocked,
-          fake: clue.isFake
+          fake: isFakeOverwrite
         };
       });
 
@@ -203,7 +229,7 @@ router.get("/accounts", verifyFirebaseToken, async (req, res, next) => {
         accountId: account._id,
         username: account.username,
         difficulty: account.difficulty,
-        crackedBy: account.crackedBy && account.crackedBy.length > 0 ? account.crackedBy[0] : null,
+        crackedBy: account.crackedBy || [],
         clues: clueRows
       };
     });
@@ -219,8 +245,11 @@ router.post("/buy-clue", verifyFirebaseToken, async (req, res, next) => {
   if (!username || !clueId) return res.status(400).json({ message: "username and clueId required" });
 
   try {
-    const clue = await Clue.findById(clueId);
-    if (!clue) return res.status(404).json({ message: "Clue not found" });
+    let realClues = await Clue.find({ accountUsername: username, isFake: { $ne: true } }).sort({ _id: 1 });
+    const clueIndex = realClues.findIndex(c => c._id.toString() === clueId.toString());
+    if (clueIndex === -1) return res.status(404).json({ message: "Clue not found" });
+    const clue = realClues[clueIndex];
+    const actualCost = clueIndex < 2 ? 0 : 10;
 
     const team = await Team.findOne({ firebaseUID: req.firebaseUID });
     if (!team) return res.status(404).json({ message: "Team not found" });
@@ -229,14 +258,14 @@ router.post("/buy-clue", verifyFirebaseToken, async (req, res, next) => {
       return res.status(409).json({ message: "Clue already purchased" });
     }
 
-    if (team.coins < clue.cost) {
+    if (team.coins < actualCost) {
       return res.status(400).json({ message: "Insufficient funds" });
     }
 
     const updatedTeam = await Team.findOneAndUpdate(
-      { _id: team._id, coins: { $gte: clue.cost } },
+      { _id: team._id, coins: { $gte: actualCost } },
       { 
-        $inc: { coins: -clue.cost },
+        $inc: { coins: -actualCost },
         $addToSet: { purchasedClues: clueId.toString() },
         $set: { lastActiveAt: new Date() }
       },
@@ -247,14 +276,34 @@ router.post("/buy-clue", verifyFirebaseToken, async (req, res, next) => {
       return res.status(400).json({ message: "Transaction failed, insufficient coins during concurrent access" });
     }
 
+
+    let finalContent = clue.content;
+    let isFakeOverwrite = false;
+    if (clueIndex === 2) {
+      const fakeClues = await Clue.find({ accountUsername: username, isFake: true, targetTeams: team.teamId });
+      if (fakeClues.length > 0) {
+        finalContent = fakeClues[0].content;
+        isFakeOverwrite = true;
+      }
+    }
+
     return res.json({
-      coins: updatedTeam.coins,
-      purchasedClues: updatedTeam.purchasedClues,
+      team: {
+        teamId: updatedTeam.teamId,
+        teamName: updatedTeam.teamName,
+        coins: updatedTeam.coins,
+        purchasedClues: updatedTeam.purchasedClues,
+        priority: updatedTeam.priority,
+        score: updatedTeam.score,
+        cracked: getCrackedSummary(updatedTeam.crackedAccounts),
+        isAdmin: updatedTeam.isAdmin
+      },
       unlockedClue: {
         clueId: clue._id,
         category: clue.category,
-        text: clue.content,
-        cost: clue.cost
+        text: finalContent,
+        cost: actualCost,
+        fake: isFakeOverwrite
       }
     });
 
@@ -371,32 +420,49 @@ router.get("/leaderboard", async (req, res, next) => {
 
 
 router.post("/inject-fake-clue", verifyFirebaseToken, async (req, res, next) => {
-  const { accountUsername, category, text } = req.body;
+  const { accountUsername, text, targetTeams } = req.body;
   try {
     const team = await Team.findOne({ firebaseUID: req.firebaseUID });
     if (!team) return res.status(404).json({ message: "Team not found" });
 
-    if (team.coins < 5) {
-      return res.status(400).json({ message: "Insufficient funds (5 coins required)" });
+    if (!targetTeams || !Array.isArray(targetTeams) || targetTeams.length === 0) {
+      return res.status(400).json({ message: "Must select at least one target team" });
+    }
+
+    const totalCost = targetTeams.length * 5;
+    if (team.coins < totalCost) {
+      return res.status(400).json({ message: `Insufficient funds (${totalCost} coins required)` });
     }
 
     const updatedTeam = await Team.findOneAndUpdate(
-      { _id: team._id, coins: { $gte: 5 } },
-      { $inc: { coins: -5 }, $set: { lastActiveAt: new Date() } },
+      { _id: team._id, coins: { $gte: totalCost } },
+      { $inc: { coins: -totalCost }, $set: { lastActiveAt: new Date() } },
       { new: true }
     );
 
-    if (!updatedTeam) return res.status(400).json({ message: "Concurrency error" });
+    if (!updatedTeam) return res.status(400).json({ message: "Concurrency error or insufficient coins" });
 
     await Clue.create({
       accountUsername,
-      category,
       content: text,
       cost: 10,
-      isFake: true
+      isFake: true,
+      targetTeams
     });
 
-    return res.json({ message: "Fake clue injected", coins: updatedTeam.coins });
+    return res.json({ 
+      message: "Fake clue injected", 
+      team: {
+        teamId: updatedTeam.teamId,
+        teamName: updatedTeam.teamName,
+        coins: updatedTeam.coins,
+        purchasedClues: updatedTeam.purchasedClues,
+        priority: updatedTeam.priority,
+        score: updatedTeam.score,
+        cracked: getCrackedSummary(updatedTeam.crackedAccounts),
+        isAdmin: updatedTeam.isAdmin
+      }
+    });
   } catch (err) {
     next(err);
   }

@@ -47,8 +47,11 @@ router.get("/overview", async (req, res, next) => {
       crackedBy: a.crackedBy && a.crackedBy.length > 0 ? a.crackedBy[0] : null
     }));
 
+    const gameState = await GameState.findOne();
+    const phase = gameState ? gameState.phase : "waiting";
+
     return res.json({
-      game: { phase: "recon" }, // Currently hardcoded phase logic isn't db driven
+      game: { phase: phase },
       teams: formattedTeams.sort((a,b) => b.score - a.score),
       accounts: formattedAccounts
     });

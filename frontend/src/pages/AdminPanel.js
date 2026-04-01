@@ -22,7 +22,7 @@ export default function AdminPanel() {
   const [overview, setOverview] = useState(null);
   const [teamForm, setTeamForm] = useState({ teamId: "", teamName: "", password: "", priority: 3 });
   const [accountForm, setAccountForm] = useState({ username: "", difficulty: "easy", password: "" });
-  const [clueForm, setClueForm] = useState({ accountId: "", category: "Pattern Hint", text: "", cost: 10 });
+  const [clueForm, setClueForm] = useState({ accountId: "", text: "", cost: 0 });
   const [phaseInfo, setPhaseInfo] = useState({ phase: "waiting", timeRemainingSec: 0 });
 
   const refresh = useCallback(async () => {
@@ -103,7 +103,6 @@ export default function AdminPanel() {
             <button className="btn btn-primary" onClick={() => execute(() => adminUpdateGame({ action: "start" }), "Game started")}>Start Game</button>
             <button className="btn btn-ghost" onClick={() => execute(() => adminUpdateGame({ action: "pause" }), "Game paused/resumed")}>{phaseInfo.phase === "paused" ? "Resume Game" : "Pause Game"}</button>
             <button className="btn btn-ghost" onClick={() => execute(() => adminUpdateGame({ action: "addTime", minutes: 5 }), "+5 Mins")}>+5 Mins</button>
-            <button className="btn btn-ghost" onClick={() => execute(() => adminUpdateGame({ action: "end" }), "Game ended")}>End Game</button>
           </div>
         </section>
 
@@ -134,20 +133,15 @@ export default function AdminPanel() {
 
         <section className="panel" style={{ marginBottom: 14 }}>
           <h3 style={{ marginTop: 0 }}>Add Clue</h3>
+          <p className="page-subtitle" style={{ margin: "0 0 10px 0" }}>* Strategy: Create exactly 4 clues per account (2 with Cost 0 for free, 2 with Cost &gt; 0 for paid).</p>
           <div className="actions-row">
             <select className="auth-input" value={clueForm.accountId} onChange={(e) => setClueForm((p) => ({ ...p, accountId: e.target.value }))}>
               {(overview?.accounts || []).map((a) => (
                 <option key={a.accountId} value={a.username}>{a.username}</option>
               ))}
             </select>
-            <select className="auth-input" value={clueForm.category} onChange={(e) => setClueForm((p) => ({ ...p, category: e.target.value }))}>
-              <option>Social Media Leak</option>
-              <option>Database Leak</option>
-              <option>Pattern Hint</option>
-              <option>Security Logs</option>
-            </select>
-            <input className="auth-input" placeholder="Clue text" value={clueForm.text} onChange={(e) => setClueForm((p) => ({ ...p, text: e.target.value }))} />
-            <input className="auth-input" type="number" min="10" max="15" value={clueForm.cost} onChange={(e) => setClueForm((p) => ({ ...p, cost: Number(e.target.value) }))} />
+            <input className="auth-input" placeholder="Clue text" value={clueForm.text} onChange={(e) => setClueForm((p) => ({ ...p, text: e.target.value }))} style={{ flex: 2 }} />
+            <input className="auth-input" type="number" min="0" placeholder="Cost (0 = Free)" value={clueForm.cost} onChange={(e) => setClueForm((p) => ({ ...p, cost: Number(e.target.value) }))} style={{ flex: 1 }} />
             <button className="btn btn-primary" onClick={() => execute(() => adminAddClue(clueForm.accountId, clueForm), "Clue added")}>Add Clue</button>
           </div>
         </section>
@@ -166,6 +160,32 @@ export default function AdminPanel() {
             ))}
           </div>
         </section>
+        <button 
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            fontSize: "11px",
+            padding: "5px 10px",
+            opacity: 0.4,
+            transition: "opacity 0.2s",
+            zIndex: 9999,
+            backgroundColor: "transparent",
+            border: "1px solid rgba(255,100,100,0.3)",
+            color: "#ff6b6b",
+            borderRadius: "4px",
+            cursor: "pointer"
+          }}
+          onMouseEnter={(e) => e.target.style.opacity = "1"}
+          onMouseLeave={(e) => e.target.style.opacity = "0.4"}
+          onClick={() => {
+            if (window.confirm("Are you entirely sure you want to forcibly END the game? This action cannot be easily undone.")) {
+              execute(() => adminUpdateGame({ action: "end" }), "Game ended");
+            }
+          }}
+        >
+          End Event
+        </button>
       </main>
     </div>
   );
