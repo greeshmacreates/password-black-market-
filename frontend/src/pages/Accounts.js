@@ -1,18 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { getAccounts, verifyAccountPassword } from "../services/api";
+import { getAccounts, verifyAccountPassword, injectFakeClue, getLeaderboard } from "../services/api";
+import { toast } from "react-hot-toast";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState([]);
   const [resultByAccount, setResultByAccount] = useState({});
   const [activeAccountId, setActiveAccountId] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [terminalResult, setTerminalResult] = useState("");
+  const [cooldownLeft, setCooldownLeft] = useState(0);
   const location = useLocation();
+
+  const [showInjectModal, setShowInjectModal] = useState(false);
+  const [injectionTimer, setInjectionTimer] = useState(0);
+  const [fakeText, setFakeText] = useState("");
+  const [opponents, setOpponents] = useState([]);
+  const [selectedTargets, setSelectedTargets] = useState([]);
 
   useEffect(() => {
     getAccounts().then((res) => setAccounts(res.data || [])).catch(() => setAccounts([]));
+    getLeaderboard().then(res => {
+      const myTeam = JSON.parse(localStorage.getItem("team"))?.teamId;
+      setOpponents((res.data || []).filter(t => t.teamId !== myTeam));
+    }).catch(() => {});
   }, []);
 
   const selectedId = useMemo(() => {
@@ -35,6 +48,7 @@ export default function Accounts() {
     setActiveAccountId("");
     setPasswordInput("");
     setTerminalResult("");
+    setCooldownLeft(0);
   };
 
   const handlePasswordSubmit = async () => {
@@ -45,13 +59,48 @@ export default function Accounts() {
       const message = res.data.message || "ACCESS GRANTED";
       setResultByAccount((prev) => ({ ...prev, [activeAccountId]: message }));
       setTerminalResult(message);
+
+      if (res.data.isFirstCrack) {
+        setShowInjectModal(true);
+        setInjectionTimer(120);
+        window.injectionInterval = setInterval(() => {
+          setInjectionTimer((prev) => {
+            if (prev <= 1) {
+              clearInterval(window.injectionInterval);
+              setShowInjectModal(false);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
     } catch (error) {
-      const message = error?.response?.data?.message || "Invalid password";
-      setResultByAccount((prev) => ({
-        ...prev,
-        [activeAccountId]: message
-      }));
-      setTerminalResult(message);
+      if (error?.response?.status === 429) {
+        setTerminalResult(error.response.data.message);
+        const lockUntil = error.response.data.lockUntil;
+        if (lockUntil) {
+           const initialRem = Math.ceil((lockUntil - Date.now()) / 1000);
+           setCooldownLeft(initialRem > 0 ? initialRem : 0);
+           const intv = setInterval(() => {
+             const nowRem = Math.ceil((lockUntil - Date.now()) / 1000);
+             if (nowRem <= 0) {
+                setCooldownLeft(0);
+                clearInterval(intv);
+                setTerminalResult("");
+             } else {
+                setCooldownLeft(nowRem);
+                setTerminalResult(`Team cooldown active. Please wait ${nowRem} seconds.`);
+             }
+           }, 1000);
+        }
+      } else {
+        const message = error?.response?.data?.message || "Invalid password";
+        setResultByAccount((prev) => ({
+          ...prev,
+          [activeAccountId]: message
+        }));
+        setTerminalResult(message);
+      }
     }
   };
 
@@ -85,7 +134,7 @@ export default function Accounts() {
                 Difficulty: <strong style={{ textTransform: "capitalize" }}>{account.difficulty}</strong>
               </p>
               <p className="page-subtitle" style={{ marginBottom: 0 }}>
-                Status: {account.crackedBy ? `Cracked by ${account.crackedBy}` : "Not cracked"}
+                Status: {account.crackedBy && account.crackedBy.length > 0 ? `Cracked by ${account.crackedBy.join(", ")}` : "Not Cracked"}
               </p>
 
               {resultByAccount[account.accountId] ? (
@@ -128,13 +177,29 @@ export default function Accounts() {
                   <span className="terminal-prompt mono">root@{activeAccount.username}:~$</span>
                   <input
                     className="terminal-input"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
                     placeholder="enter-password"
                     autoFocus
+                    style={{ flex: 1 }}
                   />
-                  <button className="terminal-btn" type="submit">EXECUTE</button>
+                  <button 
+                    type="button" 
+                    className="btn btn-ghost" 
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{ padding: "0 8px", fontSize: 12, marginRight: 8 }}
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                  <button 
+                    className="terminal-btn" 
+                    type="submit" 
+                    disabled={cooldownLeft > 0} 
+                    style={{ opacity: cooldownLeft > 0 ? 0.5 : 1, cursor: cooldownLeft > 0 ? "not-allowed" : "pointer" }}
+                  >
+                    EXECUTE
+                  </button>
                 </form>
 
                 {terminalResult ? (
@@ -142,6 +207,65 @@ export default function Accounts() {
                     &gt; {terminalResult}
                   </p>
                 ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {showInjectModal ? (
+          <div className="terminal-overlay">
+            <div className="terminal-modal" style={{ maxWidth: 450 }}>
+              <div className="terminal-head">
+                 <div className="terminal-title">SPECIAL ADVANTAGE (Cost: {selectedTargets.length * 5} Coins)</div>
+                 <div style={{ color: "orange", marginRight: 10 }}>Time: {injectionTimer}s</div>
+              </div>
+              <div className="terminal-body">
+                <p>&gt; First crack detected on <span className="mono">{activeAccount?.username}</span>. Inject false intelligence?</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                  
+                  <div style={{ maxHeight: "150px", overflowY: "auto", border: "1px solid rgba(255,255,255,0.1)", padding: "8px", borderRadius: "4px" }}>
+                    <p className="auth-sub" style={{ margin: "0 0 8px 0" }}>Select Target Teams:</p>
+                    {opponents.length === 0 ? <p className="auth-sub" style={{ margin: 0 }}>No other teams available.</p> : opponents.map(opp => {
+                      const alreadyCracked = activeAccount?.crackedBy?.includes(opp.teamId);
+                      return (
+                        <label key={opp.teamId} style={{ display: "flex", alignItems: "center", gap: 8, opacity: alreadyCracked ? 0.5 : 1, marginBottom: 4 }}>
+                          <input 
+                            type="checkbox" 
+                            disabled={alreadyCracked}
+                            checked={selectedTargets.includes(opp.teamId)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedTargets([...selectedTargets, opp.teamId]);
+                              else setSelectedTargets(selectedTargets.filter(id => id !== opp.teamId));
+                            }}
+                          />
+                          <span className="mono">{opp.teamName}</span>
+                          {alreadyCracked && <span className="auth-sub" style={{ margin: 0, fontSize: 10, color: "#fca5a5" }}>(Already Cracked)</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <input className="auth-input" placeholder="Fake text description" value={fakeText} onChange={e => setFakeText(e.target.value)} style={{ width: "100%" }} />
+                  
+                  <button className="btn btn-primary" onClick={async () => {
+                    if (selectedTargets.length === 0) return toast.error("Select at least one target team");
+                    if (!fakeText) return toast.error("Enter a fake clue text");
+                    try {
+                      await injectFakeClue({ accountUsername: activeAccount.username, text: fakeText, targetTeams: selectedTargets });
+                      toast.success("Fake clue injected targeting " + selectedTargets.length + " teams");
+                      setShowInjectModal(false);
+                      clearInterval(window.injectionInterval);
+                    } catch(err) {
+                      toast.error(err?.response?.data?.message || "Failed");
+                    }
+                  }}>
+                    Inject Fake Clue ({selectedTargets.length * 5} Coins)
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => {
+                     setShowInjectModal(false);
+                     clearInterval(window.injectionInterval);
+                  }}>Skip</button>
+                </div>
               </div>
             </div>
           </div>

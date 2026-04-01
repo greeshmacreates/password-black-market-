@@ -25,18 +25,19 @@ export default function Sidebar() {
   };
 
   const navItems = useMemo(() => {
-    const base = [
+    if (team?.isAdmin) {
+      return [
+        { to: "/admin", label: "Admin Panel", short: "AD" },
+        { to: "/leaderboard", label: "Leaderboard", short: "LB" }
+      ];
+    }
+
+    return [
       { to: "/dashboard", label: "Dashboard", short: "DB" },
       { to: "/accounts", label: "Accounts", short: "AC" },
       { to: "/clues", label: "Clue Market", short: "CM" },
       { to: "/leaderboard", label: "Leaderboard", short: "LB" }
     ];
-
-    if (team?.isAdmin) {
-      base.push({ to: "/admin", label: "Admin Panel", short: "AD" });
-    }
-
-    return base;
   }, [team]);
 
   return (
@@ -45,7 +46,10 @@ export default function Sidebar() {
         {open ? "Collapse" : "Expand"}
       </button>
 
-      <h3 className="brand">{open ? "ISFCR Cipher Arena" : "ICA"}</h3>
+      <h3 className="brand" style={{ display: 'flex', alignItems: 'center', justifyContent: open ? 'flex-start' : 'center', gap: '8px', margin: open ? '4px 6px 20px' : '4px 0 20px' }}>
+        <img src="/isfcr-logo.svg" alt="logo" style={{ width: '28px', height: '28px', objectFit: 'contain', flexShrink: 0 }} />
+        {open && <span style={{ paddingTop: '2px' }}>ISFCR</span>}
+      </h3>
 
       <nav className="nav-list">
         {navItems.map((item) => (

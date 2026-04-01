@@ -10,7 +10,17 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
-app.use(cors());
+const allowedOrigins = [process.env.CLIENT_URL, "http://localhost:3000"].filter(Boolean);
+app.use(cors({
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.length === 0 || allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== "production") {
+      return callback(null, true);
+    }
+    return callback(new Error("The CORS policy for this site does not allow access from the specified Origin."), false);
+  }
+}));
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -20,7 +30,12 @@ app.get("/", (req, res) => {
 app.use("/api", cluesRoutes);
 app.use("/api/admin", adminRoutes);
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
+  .then(async () => {
+    console.log("MongoDB Connected");
+    const GameState = require("./models/GameState");
+    const count = await GameState.countDocuments();
+    if (count === 0) await GameState.create({});
+  })
   .catch(err => console.log(err));
 
 

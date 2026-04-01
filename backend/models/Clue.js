@@ -5,8 +5,9 @@ const ClueSchema = new mongoose.Schema(
     content: { type: String, required: true },
     cost: { type: Number, required: true, min: 0 },
     isFake: { type: Boolean, default: false },
-    category: { type: String, required: true },
-    accountUsername: { type: String, required: true, index: true }
+    category: { type: String, required: false, default: "General" },
+    accountUsername: { type: String, required: true, index: true },
+    targetTeams: { type: [String], default: [] }
     
   },
   { timestamps: true }

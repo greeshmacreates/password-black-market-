@@ -19,7 +19,14 @@ const TeamSchema = new mongoose.Schema(
       default: []
     },
     purchasedClues: { type: [String], default: [] },
-    isAdmin: { type: Boolean, default: false }
+    isAdmin: { type: Boolean, default: false },
+    activeTokens: [
+      {
+        token: { type: String, required: true },
+        lastHeartbeat: { type: Number, required: true }
+      }
+    ],
+    lastActiveAt: { type: Date, default: Date.now }
   },
   { timestamps: true }
 );

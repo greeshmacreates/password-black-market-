@@ -1,44 +1,77 @@
 import { useEffect, useState, useCallback } from "react";
 import Sidebar from "../components/Sidebar";
+import { toast } from "react-hot-toast";
 import {
   adminAddClue,
   adminCreateAccount,
   adminCreateTeam,
   adminGetOverview,
-  adminInjectFakeClue,
-  adminSetPhase,
-  adminStartGame,
-  adminStopGame
+  adminUpdateGame,
+  getGameState
 } from "../services/api";
+
+const formatTimer = (seconds) => {
+  const safe = Math.max(Number(seconds || 0), 0);
+  const h = String(Math.floor(safe / 3600)).padStart(2, "0");
+  const m = String(Math.floor((safe % 3600) / 60)).padStart(2, "0");
+  const s = String(safe % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+};
 
 export default function AdminPanel() {
   const [overview, setOverview] = useState(null);
   const [teamForm, setTeamForm] = useState({ teamId: "", teamName: "", password: "", priority: 3 });
   const [accountForm, setAccountForm] = useState({ username: "", difficulty: "easy", password: "" });
-  const [clueForm, setClueForm] = useState({ accountId: "", category: "Pattern Hint", text: "", cost: 10 });
-  const [fakeForm, setFakeForm] = useState({ accountId: "", targetTeamId: "", category: "Pattern Hint", text: "" });
+  const [clueForm, setClueForm] = useState({ accountId: "", text: "", cost: 0 });
+  const [phaseInfo, setPhaseInfo] = useState({ phase: "waiting", timeRemainingSec: 0 });
 
   const refresh = useCallback(async () => {
     const res = await adminGetOverview();
     setOverview(res.data);
 
     if (!clueForm.accountId && res.data.accounts?.length) {
-      setClueForm((prev) => ({ ...prev, accountId: res.data.accounts[0].accountId }));
-      setFakeForm((prev) => ({ ...prev, accountId: res.data.accounts[0].accountId }));
+      setClueForm((prev) => ({ ...prev, accountId: res.data.accounts[0].username }));
     }
+
+    const phaseRes = await getGameState();
+    setPhaseInfo(phaseRes.data);
   }, [clueForm.accountId]);
 
   useEffect(() => {
     refresh().catch(() => {});
+    
+    const timer = setInterval(() => {
+      refresh().catch(() => {});
+    }, 10000);
+
+    return () => clearInterval(timer);
   }, [refresh]);
+
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setPhaseInfo((prev) => {
+        if (prev.phase === "recon" || prev.phase === "chaos") {
+          const timeLeft = Math.max((prev.timeRemainingSec || 0) - 1, 0);
+          return {
+            ...prev,
+            phase: timeLeft > 0 ? prev.phase : "ended",
+            timeRemainingSec: timeLeft
+          };
+        }
+        return prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(tick);
+  }, []);
 
   const execute = async (request, successMessage) => {
     try {
       await request();
       await refresh();
-      alert(successMessage);
+      toast.success(successMessage);
     } catch (error) {
-      alert(error?.response?.data?.message || "Action failed");
+      toast.error(error?.response?.data?.message || "Action failed");
     }
   };
 
@@ -57,11 +90,19 @@ export default function AdminPanel() {
 
         <section className="panel" style={{ marginBottom: 14 }}>
           <h3 style={{ marginTop: 0 }}>Game Controls</h3>
+          <div className="stats-grid" style={{ marginBottom: 16 }}>
+            <div className="stat-card"><div className="stat-label">Phase</div><div className="stat-value" style={{ fontSize: 18, color: phaseInfo.phase === "paused" ? "#fca5a5" : "#8ef8b9" }}>
+              {phaseInfo.phase === "recon" ? "Game Started" : 
+               phaseInfo.phase === "paused" ? "Game Paused" : 
+               phaseInfo.phase === "ended" ? "Game Ended" : 
+               "Waiting for Admin"}
+            </div></div>
+            <div className="stat-card"><div className="stat-label">Time Left</div><div className="stat-value mono">{formatTimer(phaseInfo.timeRemainingSec)}</div></div>
+          </div>
           <div className="actions-row">
-            <button className="btn btn-primary" onClick={() => execute(() => adminStartGame({}), "Game started")}>Start Game</button>
-            <button className="btn btn-ghost" onClick={() => execute(() => adminStopGame(), "Game stopped")}>Stop Game</button>
-            <button className="btn btn-ghost" onClick={() => execute(() => adminSetPhase({ phase: "recon" }), "Phase set to recon")}>Set Recon</button>
-            <button className="btn btn-ghost" onClick={() => execute(() => adminSetPhase({ phase: "chaos" }), "Phase set to chaos")}>Set Chaos</button>
+            <button className="btn btn-primary" onClick={() => execute(() => adminUpdateGame({ action: "start" }), "Game started")}>Start Game</button>
+            <button className="btn btn-ghost" onClick={() => execute(() => adminUpdateGame({ action: "pause" }), "Game paused/resumed")}>{phaseInfo.phase === "paused" ? "Resume Game" : "Pause Game"}</button>
+            <button className="btn btn-ghost" onClick={() => execute(() => adminUpdateGame({ action: "addTime", minutes: 5 }), "+5 Mins")}>+5 Mins</button>
           </div>
         </section>
 
@@ -92,43 +133,20 @@ export default function AdminPanel() {
 
         <section className="panel" style={{ marginBottom: 14 }}>
           <h3 style={{ marginTop: 0 }}>Add Clue</h3>
+          <p className="page-subtitle" style={{ margin: "0 0 10px 0" }}>* Strategy: Create exactly 4 clues per account (2 with Cost 0 for free, 2 with Cost &gt; 0 for paid).</p>
           <div className="actions-row">
             <select className="auth-input" value={clueForm.accountId} onChange={(e) => setClueForm((p) => ({ ...p, accountId: e.target.value }))}>
               {(overview?.accounts || []).map((a) => (
-                <option key={a.accountId} value={a.accountId}>{a.username}</option>
+                <option key={a.accountId} value={a.username}>{a.username}</option>
               ))}
             </select>
-            <select className="auth-input" value={clueForm.category} onChange={(e) => setClueForm((p) => ({ ...p, category: e.target.value }))}>
-              <option>Social Media Leak</option>
-              <option>Database Leak</option>
-              <option>Pattern Hint</option>
-              <option>Security Logs</option>
-            </select>
-            <input className="auth-input" placeholder="Clue text" value={clueForm.text} onChange={(e) => setClueForm((p) => ({ ...p, text: e.target.value }))} />
-            <input className="auth-input" type="number" min="10" max="15" value={clueForm.cost} onChange={(e) => setClueForm((p) => ({ ...p, cost: Number(e.target.value) }))} />
+            <input className="auth-input" placeholder="Clue text" value={clueForm.text} onChange={(e) => setClueForm((p) => ({ ...p, text: e.target.value }))} style={{ flex: 2 }} />
+            <input className="auth-input" type="number" min="0" placeholder="Cost (0 = Free)" value={clueForm.cost} onChange={(e) => setClueForm((p) => ({ ...p, cost: Number(e.target.value) }))} style={{ flex: 1 }} />
             <button className="btn btn-primary" onClick={() => execute(() => adminAddClue(clueForm.accountId, clueForm), "Clue added")}>Add Clue</button>
           </div>
         </section>
 
-        <section className="panel" style={{ marginBottom: 14 }}>
-          <h3 style={{ marginTop: 0 }}>Inject Fake Clue</h3>
-          <div className="actions-row">
-            <select className="auth-input" value={fakeForm.accountId} onChange={(e) => setFakeForm((p) => ({ ...p, accountId: e.target.value }))}>
-              {(overview?.accounts || []).map((a) => (
-                <option key={a.accountId} value={a.accountId}>{a.username}</option>
-              ))}
-            </select>
-            <select className="auth-input" value={fakeForm.targetTeamId} onChange={(e) => setFakeForm((p) => ({ ...p, targetTeamId: e.target.value }))}>
-              <option value="">Select Team</option>
-              {(overview?.teams || []).map((t) => (
-                <option key={t.teamId} value={t.teamId}>{t.teamId}</option>
-              ))}
-            </select>
-            <input className="auth-input" placeholder="Category" value={fakeForm.category} onChange={(e) => setFakeForm((p) => ({ ...p, category: e.target.value }))} />
-            <input className="auth-input" placeholder="Fake clue text" value={fakeForm.text} onChange={(e) => setFakeForm((p) => ({ ...p, text: e.target.value }))} />
-            <button className="btn btn-primary" onClick={() => execute(() => adminInjectFakeClue(fakeForm), "Fake clue injected")}>Inject</button>
-          </div>
-        </section>
+
 
         <section className="panel">
           <h3 style={{ marginTop: 0 }}>Monitor Leaderboard</h3>
@@ -142,6 +160,32 @@ export default function AdminPanel() {
             ))}
           </div>
         </section>
+        <button 
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            fontSize: "11px",
+            padding: "5px 10px",
+            opacity: 0.4,
+            transition: "opacity 0.2s",
+            zIndex: 9999,
+            backgroundColor: "transparent",
+            border: "1px solid rgba(255,100,100,0.3)",
+            color: "#ff6b6b",
+            borderRadius: "4px",
+            cursor: "pointer"
+          }}
+          onMouseEnter={(e) => e.target.style.opacity = "1"}
+          onMouseLeave={(e) => e.target.style.opacity = "0.4"}
+          onClick={() => {
+            if (window.confirm("Are you entirely sure you want to forcibly END the game? This action cannot be easily undone.")) {
+              execute(() => adminUpdateGame({ action: "end" }), "Game ended");
+            }
+          }}
+        >
+          End Event
+        </button>
       </main>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 import Sidebar from "../components/Sidebar";
 
 export default function Dashboard() {
@@ -20,9 +21,9 @@ export default function Dashboard() {
   const submitPassword = () => {
     const pass = prompt("Enter password");
     if (pass === "test") {
-      alert("ACCESS GRANTED");
+      toast.success("ACCESS GRANTED");
     } else {
-      alert("ACCESS DENIED");
+      toast.error("ACCESS DENIED");
     }
   };
 

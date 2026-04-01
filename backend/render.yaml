@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: isfcr-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: MONGO_URI
+        sync: false
+      - key: FIREBASE_AUTH_DISABLED
+        value: "true"
+      - key: CLIENT_URL
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
