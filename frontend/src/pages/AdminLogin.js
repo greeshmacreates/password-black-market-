@@ -39,7 +39,12 @@ export default function AdminLogin() {
         <p className="auth-sub">Use this panel to create teams, configure clues, and control phases.</p>
 
         <label className="auth-label">Admin ID</label>
-        <input className="auth-input mono" placeholder="Enter Admin ID" value={teamId} onChange={(e) => setTeamId(e.target.value.toUpperCase())} />
+        <input
+          className="auth-input mono"
+          placeholder="Enter Admin ID"
+          value={teamId}
+          onChange={(e) => setTeamId(e.target.value.toUpperCase())}
+        />
 
         <label className="auth-label">Password</label>
         <div style={{ position: "relative", display: "flex", alignItems: "center", marginBottom: "16px" }}>
@@ -71,7 +76,7 @@ export default function AdminLogin() {
           </button>
         </div>
 
-        <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: "100%" }}>
+        <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: "100%", marginTop: "16px" }}>
           {loading ? "Signing in..." : "Open Admin Panel"}
         </button>
 
