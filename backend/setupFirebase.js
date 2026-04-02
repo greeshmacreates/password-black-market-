@@ -43,8 +43,20 @@ async function setup() {
         });
         console.log(`✅ Created ${team.teamId} in Firebase Auth`);
       } catch (err) {
-        if (err.code === "auth/email-already-exists" || err.code === "auth/uid-already-exists") {
-          console.log(`⏭️  ${team.teamId} already exists in Firebase Auth, skipping...`);
+        if (err.code === "auth/email-already-exists") {
+          // If email exists but UID might be different, find the user by email first
+          const existingUser = await admin.auth().getUserByEmail(email);
+          await admin.auth().updateUser(existingUser.uid, {
+            password: team.password,
+            displayName: team.teamName
+          });
+          console.log(`🔄 Updated existing user ${existingUser.email} in Firebase Auth`);
+        } else if (err.code === "auth/uid-already-exists") {
+          await admin.auth().updateUser(uid, {
+            password: team.password,
+            displayName: team.teamName
+          });
+          console.log(`🔄 Updated existing UID ${uid} in Firebase Auth`);
         } else {
           console.error(`❌ Failed to create ${team.teamId}:`, err.message);
         }
