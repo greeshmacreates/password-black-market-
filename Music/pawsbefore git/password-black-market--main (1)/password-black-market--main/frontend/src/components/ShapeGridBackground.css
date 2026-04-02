@@ -1,0 +1,84 @@
+.shape-grid-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--shape-size), 1fr));
+  grid-auto-rows: var(--shape-size);
+  gap: 10px;
+  padding: 20px;
+  opacity: 0.9;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+}
+
+.shape-grid-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(120, 160, 255, 0.13), transparent 45%),
+    radial-gradient(ellipse at 80% 90%, rgba(99, 102, 241, 0.12), transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.shape-grid-cell {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--shape-border);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(120, 160, 255, 0.04);
+  animation: shapeDrift var(--shape-speed) linear infinite;
+  animation-duration: calc(var(--shape-speed) * (10 + (var(--i, 0) * 0.03)));
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+}
+
+.shape-grid-bg.shape-square .shape-grid-cell {
+  border-radius: 8px;
+}
+
+.shape-grid-bg.shape-circle .shape-grid-cell {
+  border-radius: 999px;
+}
+
+.shape-grid-bg.shape-hexagon .shape-grid-cell {
+  clip-path: polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%);
+}
+
+.shape-grid-bg.shape-triangle .shape-grid-cell {
+  clip-path: polygon(50% 8%, 100% 92%, 0 92%);
+}
+
+.shape-grid-bg.dir-right .shape-grid-cell { --dx: 8px; --dy: 0px; }
+.shape-grid-bg.dir-left .shape-grid-cell { --dx: -8px; --dy: 0px; }
+.shape-grid-bg.dir-up .shape-grid-cell { --dx: 0px; --dy: -8px; }
+.shape-grid-bg.dir-down .shape-grid-cell { --dx: 0px; --dy: 8px; }
+.shape-grid-bg.dir-diagonal .shape-grid-cell { --dx: 8px; --dy: -8px; }
+
+.shape-grid-cell.is-active {
+  background: rgba(120, 160, 255, 0.28);
+  border-color: rgba(133, 174, 255, 0.72);
+  box-shadow: 0 0 20px rgba(120, 160, 255, 0.28), inset 0 0 0 1px rgba(175, 210, 255, 0.3);
+}
+
+.shape-grid-cell.is-trail {
+  opacity: calc(1 - (max(var(--trail-order, 0), 0) * 0.09));
+  background: rgba(120, 160, 255, 0.16);
+  border-color: rgba(133, 174, 255, 0.38);
+}
+
+@keyframes shapeDrift {
+  0% {
+    transform: translate(0, 0);
+    background: transparent;
+  }
+  50% {
+    transform: translate(var(--dx), var(--dy));
+  }
+  100% {
+    transform: translate(0, 0);
+    background: transparent;
+  }
+}
