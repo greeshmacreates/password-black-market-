@@ -22,19 +22,19 @@ async function seed() {
 
     // 2. Create the MASTER ADMIN Account
     await Team.create({
-      teamId: "ADMINISFCR2",
+      teamId: "ADMINISFCR1",
       teamName: "Game Admin",
-      password: "theclubadmins",
+      password: "thekaliusers",
       firebaseUID: "dev-uid-admin",
       isAdmin: true,
       coins: 0,
       priority: 1
     });
-    console.log("Admin account (ADMINISFCR2) created ✅");
+    console.log(`Admin account ADMIN1 created ✅`);
 
     // 3. Initialize Game State
     await GameState.create({
-      phase: "waiting", 
+      phase: "waiting",
       timeRemainingSec: 7200,
       lastUpdateAt: new Date()
     });

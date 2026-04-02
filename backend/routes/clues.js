@@ -5,6 +5,7 @@ const Account = require("../models/Account");
 const Clue = require("../models/Clue");
 const Submission = require("../models/Submission");
 const GameState = require("../models/GameState");
+const { getCalculatedGameState } = require("../utils/gameUtils");
 
 const rateLimits = new Map(); // teamId -> { attempts: count, lockUntil: timestamp }
 
@@ -74,15 +75,19 @@ router.post("/heartbeat", verifyFirebaseToken, async (req, res, next) => {
     const team = await Team.findOne({ firebaseUID: req.firebaseUID });
     if (!team) return res.status(404).json({ message: "Team not found" });
 
-    // Filter out stale tokens (> 60 seconds)
+    // Filter out stale tokens (> 45 seconds is safer for a 10s heartbeat)
     const now = Date.now();
-    let tokens = (team.activeTokens || []).filter(t => (now - t.lastHeartbeat) < 60000);
+    let tokens = (team.activeTokens || []).filter(t => (now - t.lastHeartbeat) < 45000);
     
     // Add or update current session
     const existingIndex = tokens.findIndex(t => t.token === sessionId);
     if (existingIndex >= 0) {
       tokens[existingIndex].lastHeartbeat = now;
     } else {
+      // If we are here, it's a new session, ensure we don't exceed 2
+      if (tokens.length >= 2) {
+         return res.status(403).json({ message: "Too many sessions. Please log out elsewhere." });
+      }
       tokens.push({ token: sessionId, lastHeartbeat: now });
     }
 
@@ -97,26 +102,21 @@ router.post("/heartbeat", verifyFirebaseToken, async (req, res, next) => {
 
 router.get("/game/state", async (req, res, next) => {
   try {
-    const gameState = await GameState.findOne();
-    if (!gameState) return res.json({ phase: "waiting" });
+    const rawState = await GameState.findOne();
+    const state = getCalculatedGameState(rawState);
     
-    // Calculate lazy time
-    const now = Date.now();
-    let timeLeft = gameState.timeRemainingSec;
-    if (gameState.phase === "recon") {
-       const elapsed = Math.floor((now - gameState.lastUpdateAt.getTime()) / 1000);
-       timeLeft = Math.max(0, timeLeft - elapsed);
-
-       if (timeLeft === 0) {
-           gameState.phase = "ended";
-           gameState.timeRemainingSec = 0;
-           await gameState.save();
-       }
+    // Persist the end state if we just reached it lazily
+    if (state.phase === "ended" && rawState.phase !== "ended") {
+        await GameState.updateOne({ _id: rawState._id }, { 
+            phase: "ended", 
+            timeRemainingSec: 0, 
+            lastUpdateAt: Date.now() 
+        });
     }
     
     return res.json({
-      phase: gameState.phase,
-      timeRemainingSec: timeLeft
+      phase: state.phase,
+      timeRemainingSec: state.timeRemainingSec
     });
   } catch (err) {
     next(err);
@@ -150,15 +150,35 @@ router.post("/login", verifyFirebaseToken, async (req, res, next) => {
     const sessionId = req.headers["x-session-id"];
     if (sessionId) {
       const now = Date.now();
-      let tokens = (team.activeTokens || []).filter(t => (now - t.lastHeartbeat) < 60000);
+      // 1. Strictly prune stale tokens first
+      let tokens = (team.activeTokens || []).filter(t => (now - t.lastHeartbeat) < 45000);
       
       const isAlreadyActive = tokens.find(t => t.token === sessionId);
       if (!isAlreadyActive) {
         if (tokens.length >= 2) {
-          return res.status(403).json({ message: "Maximum logins (2) reached for this team." });
+          return res.status(403).json({ 
+              message: "Maximum logins (2) reached. Please close other devices and wait 45 seconds." 
+          });
         }
-        tokens.push({ token: sessionId, lastHeartbeat: now });
-        await Team.updateOne({ _id: team._id }, { activeTokens: tokens });
+        
+        // 2. Atomic push with length check to prevent race conditions
+        const updateResult = await Team.updateOne(
+          { 
+            _id: team._id, 
+            $expr: { $lt: [{ $size: { $filter: { input: "$activeTokens", as: "t", cond: { $gt: ["$$t.lastHeartbeat", now - 45000] } } } }, 2] }
+          },
+          { $push: { activeTokens: { token: sessionId, lastHeartbeat: now } } }
+        );
+
+        if (updateResult.modifiedCount === 0) {
+           return res.status(403).json({ message: "Concurrent login detected. Max 2 sessions allowed." });
+        }
+      } else {
+        // Just refresh the existing session heartbeat
+        await Team.updateOne(
+          { _id: team._id, "activeTokens.token": sessionId },
+          { $set: { "activeTokens.$.lastHeartbeat": now } }
+        );
       }
     }
 

@@ -5,6 +5,7 @@ const Team = require("../models/Team");
 const Account = require("../models/Account");
 const Clue = require("../models/Clue");
 const GameState = require("../models/GameState");
+const { getCalculatedGameState } = require("../utils/gameUtils");
 
 const router = express.Router();
 
@@ -47,11 +48,11 @@ router.get("/overview", async (req, res, next) => {
       crackedBy: a.crackedBy && a.crackedBy.length > 0 ? a.crackedBy[0] : null
     }));
 
-    const gameState = await GameState.findOne();
-    const phase = gameState ? gameState.phase : "waiting";
+    const rawGameState = await GameState.findOne();
+    const gameState = getCalculatedGameState(rawGameState);
 
     return res.json({
-      game: { phase: phase },
+      game: { phase: gameState.phase, timeRemainingSec: gameState.timeRemainingSec },
       teams: formattedTeams.sort((a,b) => b.score - a.score),
       accounts: formattedAccounts
     });
@@ -124,28 +125,30 @@ router.post("/game/update", async (req, res, next) => {
     if (!gameState) return res.status(404).json({ message: "No game state found" });
 
     const now = Date.now();
-    let currentElapsed = 0;
-    if (gameState.phase === "recon") {
-        currentElapsed = Math.floor((now - gameState.lastUpdateAt.getTime()) / 1000);
-    }
+    const state = getCalculatedGameState(gameState);
 
     if (req.body.action === "start") {
       gameState.phase = "recon";
       gameState.timeRemainingSec = 7200; // 2 hours
       gameState.lastUpdateAt = now;
     } else if (req.body.action === "pause") {
-      if (gameState.phase === "recon") {
-          gameState.timeRemainingSec = Math.max(0, gameState.timeRemainingSec - currentElapsed);
+      if (state.phase === "recon") {
+          // Commit the lazy time before pausing
+          gameState.timeRemainingSec = state.timeRemainingSec;
           gameState.phase = "paused";
-      } else if (gameState.phase === "paused") {
+          gameState.lastUpdateAt = now;
+      } else if (state.phase === "paused") {
+          // Resume
           gameState.phase = "recon";
           gameState.lastUpdateAt = now;
       }
     } else if (req.body.action === "addTime") {
-      gameState.timeRemainingSec += (req.body.minutes || 5) * 60;
+      gameState.timeRemainingSec = state.timeRemainingSec + (req.body.minutes || 5) * 60;
+      gameState.lastUpdateAt = now;
     } else if (req.body.action === "end") {
        gameState.phase = "ended";
        gameState.timeRemainingSec = 0;
+       gameState.lastUpdateAt = now;
     }
 
     await gameState.save();
